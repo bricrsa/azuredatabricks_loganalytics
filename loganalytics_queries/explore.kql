@@ -1,0 +1,8 @@
+DatabricksClusters 
+| extend rparams = parse_json(RequestParams)
+| extend clusterid = rparams.cluster_id
+| extend autoscale = rparams.autoscale
+| extend ctags = parse_json(rparams).custom_tags
+| extend gty = gettype(ctags)
+| extend jid = extractjson("$.['JobId']", tostring(ctags))
+| extend rn = extractjson("$.['RunName']", tostring(ctags))
