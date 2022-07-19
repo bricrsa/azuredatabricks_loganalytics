@@ -2,7 +2,35 @@ DatabricksClusters
 | extend rparams = parse_json(RequestParams)
 | extend clusterid = rparams.cluster_id
 | extend autoscale = rparams.autoscale
-| extend ctags = parse_json(rparams).custom_tags
-| extend gty = gettype(ctags)
-| extend jid = extractjson("$.['JobId']", tostring(ctags))
-| extend rn = extractjson("$.['RunName']", tostring(ctags))
+| extend JobId = extractjson("$.['JobId']", tostring(rparams.custom_tags))
+| extend RunName = extractjson("$.['RunName']", tostring(rparams.custom_tags))
+
+
+DatabricksJobs 
+| extend rparams = parse_json(RequestParams)
+| extend RunId = extractjson("$.['run_id']", tostring(rparams)), ClusterId = extractjson("$.['clusterId']", tostring(rparams))
+
+
+DatabricksNotebook
+| extend email = parse_json(Identity).email
+
+
+
+DatabricksWorkspace
+| extend ADBWorkspaceName = substring(reverse(split(reverse(_ResourceId),"/",0)),2,strlen(split(reverse(_ResourceId),"/",0))-4) 
+
+
+//find tags in the logs - to find costs
+
+//find job runs and notebooks with tags or names
+// Jobs
+DatabricksJobs 
+| extend rparams = parse_json(RequestParams)
+| extend RunId = extractjson("$.['run_id']", tostring(rparams)), ClusterId = extractjson("$.['clusterId']", tostring(rparams))
+
+DatabricksClusters 
+| extend rparams = parse_json(RequestParams)
+| extend clusterid = rparams.cluster_id
+| where clusterid  == '0718-055605-b9kvvk2s'
+
+DatabricksWorkspace 

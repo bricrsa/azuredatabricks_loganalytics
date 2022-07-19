@@ -1,0 +1,49 @@
+// Jobs
+DatabricksJobs 
+| extend rparams = parse_json(RequestParams)
+| extend RunId = extractjson("$.['run_id']", tostring(rparams)), ClusterId = extractjson("$.['clusterId']", tostring(rparams))
+
+DatabricksClusters 
+| extend rparams = parse_json(RequestParams)
+| extend clusterid = rparams.cluster_id
+| where clusterid  == '0718-055605-b9kvvk2s'
+
+DatabricksClusters 
+| extend rparams = parse_json(RequestParams)
+| extend clusterid = rparams.cluster_id
+| distinct ActionName
+
+//createResult
+DatabricksClusters 
+| where ActionName == 'createResult'
+| extend rparams = parse_json(RequestParams)
+| extend clusterid = rparams.clusterId
+
+//start
+DatabricksClusters 
+| where ActionName == 'createResult'
+| extend rparams = parse_json(RequestParams)
+| extend clusterid = rparams.clusterId
+
+
+//create
+DatabricksClusters 
+| where ActionName == 'create' //create a cluster
+| extend rparams = parse_json(RequestParams)
+| extend ClusterName = extractjson("$.['cluster_name']", tostring(rparams)), ClusterCreator = extractjson("$.['cluster_creator']", tostring(rparams))
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterID = extractjson("$.['cluster_id']", tostring(response.result))
+| extend NodeTypeId = extractjson("$.['node_type_id']", tostring(rparams))
+
+//resize
+DatabricksClusters 
+| where ActionName == 'resize' //create a cluster
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterId = extractjson("$.['cluster_id']", tostring(rparams))
+
+
+
+DatabricksWorkspace 

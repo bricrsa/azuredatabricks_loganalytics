@@ -1,1 +1,1 @@
-# azuredatabricks_loganalytics
+# Monitoring Azure Databricks with Log Analytics
