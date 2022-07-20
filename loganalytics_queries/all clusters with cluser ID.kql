@@ -1,0 +1,21 @@
+//all cluster output with ClusterID
+let c_id = DatabricksClusters 
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterId = extractjson("$.['cluster_id']", tostring(rparams))
+| where isnotempty( ClusterId);
+let cid = DatabricksClusters 
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterId = extractjson("$.['clusterId']", tostring(rparams))
+| where isnotempty( ClusterId);
+let c_idr = DatabricksClusters 
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterId = extractjson("$.['cluster_id']", tostring(response.result))
+| where isnotempty( ClusterId);
+c_id | union cid, c_idr
+| order by TimeGenerated asc
