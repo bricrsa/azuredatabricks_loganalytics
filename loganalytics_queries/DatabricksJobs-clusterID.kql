@@ -1,0 +1,19 @@
+// get ClusterId1 for most RunIds
+DatabricksJobs 
+| extend rparams1 = parse_json(RequestParams)
+| extend Run_Id = extractjson("$.['run_id']", tostring(rparams1)), runId = extractjson("$.['runId']", tostring(rparams1)), ClusterId = extractjson("$.['clusterId']", tostring(rparams1))
+| extend RunIdAll = runId
+| where isnotempty(ClusterId) 
+| union (DatabricksJobs 
+                    | extend rparams2 = parse_json(RequestParams)
+                    | extend Run_Id = extractjson("$.['run_id']", tostring(rparams2)), runId = extractjson("$.['runId']", tostring(rparams2)), ClusterId = extractjson("$.['clusterId']", tostring(rparams2))
+                    | extend RunIdAll = iff((runId in ("")), Run_Id, runId)
+                    | where isempty(ClusterId) )
+| join kind = leftouter (DatabricksJobs 
+                    | extend rparams1 = parse_json(RequestParams)
+                    | extend Run_Id = extractjson("$.['run_id']", tostring(rparams1)), runId = extractjson("$.['runId']", tostring(rparams1)), ClusterId = extractjson("$.['clusterId']", tostring(rparams1))
+                    | extend RunIdAll = iff((runId in ("")), Run_Id, runId)
+                    | where isnotempty(ClusterId) 
+                    | summarize by ClusterId, RunIdAll )
+on $left.RunIdAll == $right.RunIdAll
+| project ClusterId1, RunIdAll, ActionName, Category, Identity  , LogId , OperationName , OperationVersion , RequestId , RequestParams , Response , ServiceName , SessionId , SourceIPAddress , SourceSystem , TenantId , TimeGenerated , Type , UserAgent , _ResourceId , _SubscriptionId 
