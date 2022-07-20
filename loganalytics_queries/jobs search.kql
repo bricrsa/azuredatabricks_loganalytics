@@ -1,0 +1,42 @@
+//clusters created for jobs
+
+DatabricksClusters
+| where parse_json(RequestParams).cluster_creator == "JOB_LAUNCHER"
+| extend ClusterId = extractjson("$.['cluster_id']", tostring(parse_json(Response).result))
+
+//all cluster output with ClusterID
+let c_id = DatabricksClusters 
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterId = extractjson("$.['cluster_id']", tostring(rparams))
+| where isnotempty( ClusterId);
+let cid = DatabricksClusters 
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterId = extractjson("$.['clusterId']", tostring(rparams))
+| where isnotempty( ClusterId);
+let c_idr = DatabricksClusters 
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterId = extractjson("$.['cluster_id']", tostring(response.result))
+| where isnotempty( ClusterId);
+c_id | union cid, c_idr
+| order by TimeGenerated asc
+| summarize dcount(ClusterId) by Date = bin(TimeGenerated,1h) , HourofDay = hourofday(TimeGenerated) ,OperationName
+
+
+
+//all cluster output with ClusterID - just create
+let c_idr = DatabricksClusters 
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterId = extractjson("$.['cluster_id']", tostring(response.result))
+| where isnotempty( ClusterId);
+c_idr
+| order by TimeGenerated asc
+| summarize ClusterCount = dcount(ClusterId) by Date = bin(TimeGenerated,1h) ,OperationName
+| render columnchart 
