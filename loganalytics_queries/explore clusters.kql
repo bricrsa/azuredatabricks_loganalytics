@@ -1,0 +1,18 @@
+let Clusters = datatable(ClusterId:string)
+    ["0310-103522-zj6pgrgi"];
+let c_id = DatabricksClusters 
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterId = extractjson("$.['cluster_id']", tostring(rparams))
+| join kind=inner Clusters on ClusterId;
+let cid = DatabricksClusters 
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterId = extractjson("$.['clusterId']", tostring(rparams))
+| join kind=inner Clusters on ClusterId;
+c_id | union cid
+| order by TimeGenerated asc
+| summarize Rcount = dcount(TimeGenerated) by OperationName //check relship between resize and resize result
+//resizeresults are not always preceded by resizes...
