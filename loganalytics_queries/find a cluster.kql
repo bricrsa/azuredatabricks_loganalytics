@@ -3,10 +3,20 @@ DatabricksClusters
 | order by TimeGenerated desc
 | limit 20
 
+DatabricksClusters
+| where ActionName  == "startResult"
+| order by TimeGenerated desc
+| limit 20
+
+DatabricksClusters
+| where ActionName  == "create"
+| order by TimeGenerated desc
+| limit 20
+
 
 //resize
 let Clusters = datatable(ClusterId:string)
-    ["0310-103522-zj6pgrgi"];
+    ["0720-100935-4omi5hsu"];
 DatabricksClusters 
 | where ActionName == 'resize' //create a cluster
 | extend rparams = parse_json(RequestParams)
@@ -44,7 +54,7 @@ DatabricksClusters
 
 //create
 let Clusters = datatable(ClusterId:string)
-    ["0310-103522-zj6pgrgi"];
+    ["0720-100829-7p74vwni"];
 DatabricksClusters 
 | where ActionName == 'create' //create a cluster
 | extend rparams = parse_json(RequestParams)
@@ -85,37 +95,39 @@ DatabricksClusters
 | project TimeGenerated, ActionName, StatusCode, ClusterId, Identity
 
 
-//start
+
 let Clusters = datatable(ClusterId:string)
-    ["0310-103522-zj6pgrgi"];
+    ["0720-100935-4omi5hsu"];
+//start
 let cStart = DatabricksClusters 
-| where ActionName == 'start' //create a cluster
+| where ActionName == 'start' 
 | extend rparams = parse_json(RequestParams)
 | extend response = parse_json(Response)
 | extend StatusCode = response.statusCode
 | extend ClusterId = extractjson("$.['cluster_id']", tostring(rparams))
-| extend Message = response.result
+| extend Message = tostring(response.result)
 | join kind=inner Clusters on ClusterId
-| project TimeGenerated, ActionName, StatusCode, ClusterId, Identity;
+| project TimeGenerated, ActionName, StatusCode, ClusterId, Identity, Message, RequestParams, LogId;
 //resize
 let cResize = DatabricksClusters 
-| where ActionName == 'resize' //create a cluster
+| where ActionName == 'resize' 
 | extend rparams = parse_json(RequestParams)
 | extend response = parse_json(Response)
 | extend StatusCode = response.statusCode
 | extend ClusterId = extractjson("$.['cluster_id']", tostring(rparams))
-| extend Message = extractjson("$.['autoscale']", tostring(rparams))
+| extend Message = tostring(extractjson("$.['cause']", tostring(rparams)))
 | join kind=inner Clusters on ClusterId
-| project TimeGenerated, ActionName, StatusCode, ClusterId, Identity;
+| project TimeGenerated, ActionName, StatusCode, ClusterId, Identity, Message, RequestParams, LogId;
+//resizeResult
 let cResizeResult = DatabricksClusters 
-| where ActionName == 'resizeResult' //create a cluster
+| where ActionName == 'resizeResult' 
 | extend rparams = parse_json(RequestParams)
 | extend response = parse_json(Response)
 | extend StatusCode = response.statusCode
 | extend ClusterId = extractjson("$.['clusterId']", tostring(rparams))
-| extend Message = extractjson("$.['clusterName']", tostring(rparams))
+| extend Message = tostring(extractjson("$.['clusterName']", tostring(rparams)))
 | join kind=inner Clusters on ClusterId
-| project TimeGenerated, ActionName, StatusCode, ClusterId, Identity, Message;
+| project TimeGenerated, ActionName, StatusCode, ClusterId, Identity, Message, RequestParams, LogId;
 //delete
 let cDelete = DatabricksClusters 
 | where ActionName == 'delete' //create a cluster
@@ -123,9 +135,9 @@ let cDelete = DatabricksClusters
 | extend response = parse_json(Response)
 | extend StatusCode = response.statusCode
 | extend ClusterId = extractjson("$.['cluster_id']", tostring(rparams))
-| extend Message = extractjson("$.['termination_reason']", tostring(rparams))
+| extend Message = tostring(extractjson("$.['termination_reason']", tostring(rparams)))
 | join kind=inner Clusters on ClusterId
-| project TimeGenerated, ActionName, StatusCode, ClusterId, Identity, Message;
+| project TimeGenerated, ActionName, StatusCode, ClusterId, Identity, Message, RequestParams, LogId;
 //deleteResult
 let cDeleteResult = DatabricksClusters 
 | where ActionName == 'deleteResult' 
@@ -133,9 +145,21 @@ let cDeleteResult = DatabricksClusters
 | extend response = parse_json(Response)
 | extend StatusCode = response.statusCode
 | extend ClusterId = extractjson("$.['clusterId']", tostring(rparams))
-| extend Message = extractjson("$.['clusterState']", tostring(rparams))
+| extend Message = tostring(extractjson("$.['clusterState']", tostring(rparams)))
 | join kind=inner Clusters on ClusterId
-| project TimeGenerated, ActionName, StatusCode, ClusterId, Identity, Message;
-cStart | union cResize, cResizeResult, cDeleteResult, cDeleteResult
+| project TimeGenerated, ActionName, StatusCode, ClusterId, Identity, Message, RequestParams, LogId;
+//create
+let cCreate =DatabricksClusters 
+| where ActionName == 'create' //create a cluster
+| extend rparams = parse_json(RequestParams)
+| extend ClusterName = extractjson("$.['cluster_name']", tostring(rparams)), ClusterCreator = extractjson("$.['cluster_creator']", tostring(rparams))
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterId = extractjson("$.['cluster_id']", tostring(response.result))
+| extend NodeTypeId = extractjson("$.['node_type_id']", tostring(rparams))
+| extend Message = tostring(rparams.cluster_name)
+| join kind=inner Clusters on ClusterId
+| project TimeGenerated, ActionName, StatusCode, ClusterId, Identity, Message, RequestParams, LogId;
+cStart | union cResize, cResizeResult, cDeleteResult, cCreate
 | order by TimeGenerated asc
 
