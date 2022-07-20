@@ -44,6 +44,12 @@ DatabricksClusters
 | extend StatusCode = response.statusCode
 | extend ClusterId = extractjson("$.['cluster_id']", tostring(rparams))
 
-
+//resizeResult
+DatabricksClusters 
+| where ActionName == 'resizeResult' //create a cluster
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterId = extractjson("$.['clusterId']", tostring(rparams))
 
 DatabricksWorkspace 
