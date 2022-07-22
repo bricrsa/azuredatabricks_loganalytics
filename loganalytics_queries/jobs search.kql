@@ -40,3 +40,40 @@ c_idr
 | order by TimeGenerated asc
 | summarize ClusterCount = dcount(ClusterId) by Date = bin(TimeGenerated,1h) ,OperationName
 | render columnchart 
+
+
+//track job name and run name from custom tags
+0720-120015-aob6bwgu
+
+//all cluster output with ClusterID
+let c_idr = DatabricksClusters
+| where ActionName == "create" 
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterId = extractjson("$.['cluster_id']", tostring(response.result))
+| where isnotempty( ClusterId);
+c_idr 
+| order by TimeGenerated asc
+//| where ClusterId == "0720-120015-aob6bwgu"
+| extend CustomTag_Job = extractjson("$.['Job']", tostring(rparams.custom_tags))
+| extend CustomTag_Job = extractjson("$.['JobId']", tostring(rparams.custom_tags))
+| extend CustomTag_Job = extractjson("$.['RunName']", tostring(rparams.custom_tags))
+| extend SparkVersion = rparams.spark_version
+
+
+//try and see what we can find for non jobs clusters
+//via start event
+
+//all cluster output with ClusterID
+//for non jobs clusters
+let cid = DatabricksClusters 
+| where ActionName == "startResult"
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterId = extractjson("$.['clusterId']", tostring(rparams))
+| extend ClusterName = extractjson("$.['clusterName']", tostring(rparams));
+cid 
+| order by TimeGenerated asc
+
