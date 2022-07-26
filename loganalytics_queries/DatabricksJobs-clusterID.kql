@@ -21,3 +21,88 @@ on $left.RunIdAll == $right.RunIdAll
 | extend ClusterId2 = iff((ClusterId1 in ("")), instance_pool_id, ClusterId1)
 | project ClusterId2, ClusterId1, instance_pool_id, RunIdAll, ActionName, Category, Identity  , LogId , OperationName , OperationVersion , RequestId , RequestParams , Response , ServiceName , SessionId , SourceIPAddress , SourceSystem , TenantId , TimeGenerated , Type , UserAgent , _ResourceId , _SubscriptionId 
 | order by ClusterId2, ClusterId1, instance_pool_id, RunIdAll
+
+
+//ActionName = "changeJobAcl" does not have run id or cluster id
+//show all runs, orderered
+//rows will show with cluster id in "jobTerminalState":"Running" as well as "jobTerminalState":"Succeeded" in rparams
+DatabricksJobs 
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend RunID = coalesce(extractjson("$.['run_id']", tostring(rparams))
+    , extractjson("$.['runId']", tostring(rparams))
+    , extractjson("$.['run_id']", tostring(response.result)))
+    , ClusterId = extractjson("$.['clusterId']", tostring(rparams))
+| where ActionName != "changeJobAcl"
+| order by RunID, TimeGenerated asc
+
+//select most recent row for a cluster id only to get most recent status
+DatabricksJobs 
+| where ActionName != "changeJobAcl"
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend RunID = coalesce(extractjson("$.['run_id']", tostring(rparams))
+    , extractjson("$.['runId']", tostring(rparams))
+    , extractjson("$.['run_id']", tostring(response.result)))
+    , ClusterId = extractjson("$.['clusterId']", tostring(rparams))
+| order by RunID, TimeGenerated asc
+
+//select most recent row for a cluster id only to get most recent status
+//highlight type of job, schedule etc
+let JobLastRow = DatabricksJobs 
+| where ActionName != "changeJobAcl"
+| extend rparams = parse_json(RequestParams),response = parse_json(Response)
+| extend RunID = coalesce(extractjson("$.['run_id']", tostring(rparams))
+    , extractjson("$.['runId']", tostring(rparams))
+    , extractjson("$.['run_id']", tostring(response.result)))
+| extend ClusterId = extractjson("$.['clusterId']", tostring(rparams))
+| where isnotempty(ClusterId) 
+| summarize jLastRow = max(TimeGenerated) by ClusterId, RunID;
+let JobNoClusterID = DatabricksJobs 
+| where ActionName != "changeJobAcl"
+| extend rparams = parse_json(RequestParams),response = parse_json(Response)
+| extend RunID = coalesce(extractjson("$.['run_id']", tostring(rparams))
+    , extractjson("$.['runId']", tostring(rparams))
+    , extractjson("$.['run_id']", tostring(response.result)))
+| extend ClusterId = extractjson("$.['clusterId']", tostring(rparams))
+| where isempty(ClusterId) ;
+let JobRows = DatabricksJobs 
+| where ActionName != "changeJobAcl"
+| extend rparams = parse_json(RequestParams),response = parse_json(Response)
+| extend RunID = coalesce(extractjson("$.['run_id']", tostring(rparams))
+    , extractjson("$.['runId']", tostring(rparams))
+    , extractjson("$.['run_id']", tostring(response.result)))
+| extend ClusterId = extractjson("$.['clusterId']", tostring(rparams));
+JobRows
+| join kind=inner JobLastRow on ClusterId, $left.TimeGenerated==$right.jLastRow
+| join kind=inner JobNoClusterID on RunID
+| extend JobTaskType = rparams.jobTaskType, JobStatus = rparams.jobTerminalState, NotebookPath = extractjson("$.['notebook_path']", tostring(rparams1.notebook_task))
+    , JobTriggerType = coalesce(rparams.jobTriggerType,rparams1.jobTriggerType), JobClusterType = rparams.jobClusterType, StatusCode = response.statusCode
+| project TimeGenerated, ActionName, ClusterId, RunID = RunID2, JobTaskType, JobClusterType, JobStatus, NotebookPath, JobTriggerType, RequestParams, rparams1, StatusCode, response1
+| order by ClusterId, TimeGenerated
+
+
+
+//job duration
+let JobLastRow = DatabricksJobs 
+| where ActionName != "changeJobAcl"
+| extend rparams = parse_json(RequestParams),response = parse_json(Response)
+| extend RunID = coalesce(extractjson("$.['run_id']", tostring(rparams))
+    , extractjson("$.['runId']", tostring(rparams))
+    , extractjson("$.['run_id']", tostring(response.result)))
+| extend ClusterId = extractjson("$.['clusterId']", tostring(rparams))
+| where isnotempty(ClusterId) 
+| summarize jLastRow = max(TimeGenerated) by ClusterId, RunID;
+let JobFirstRow = DatabricksJobs 
+| where ActionName != "changeJobAcl"
+| extend rparams = parse_json(RequestParams),response = parse_json(Response)
+| extend RunID = coalesce(extractjson("$.['run_id']", tostring(rparams))
+    , extractjson("$.['runId']", tostring(rparams))
+    , extractjson("$.['run_id']", tostring(response.result)))
+| extend ClusterId = extractjson("$.['clusterId']", tostring(rparams))
+| where isnotempty(ClusterId)
+| summarize jFirstRow = min(TimeGenerated) by ClusterId, RunID;
+JobLastRow
+| join kind=inner JobFirstRow on ClusterId
+| project ClusterId, RunID, Duration = datetime_diff("second", jLastRow, jFirstRow)
+
