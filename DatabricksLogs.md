@@ -1,5 +1,7 @@
 # DatabricksClusters
 
+[back to Contents](/README.md#contents)
+
 For the Cluster logs, there is [unique list of Actions](/loganalytics_queries/clusters_list_of_actions.kql)
 
 *ActionName*
@@ -45,6 +47,8 @@ For interactive clusters,
 - startResult, resizeResult, deleteResult include cluster name via
 - start events do not include cluster name
 
+[back to Contents](/README.md#contents)
+
 # DatabricksAccounts
 
 From Databricks accounts, we can see the UserAgent that logged in 
@@ -80,3 +84,5 @@ Event details:
 
 *with Nothing*
 - changeJobAcl
+
+[back to Contents](/README.md#contents)
