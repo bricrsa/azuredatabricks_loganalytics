@@ -19,3 +19,17 @@ let c_idr = DatabricksClusters
 | where isnotempty( ClusterId);
 c_id | union cid, c_idr
 | order by TimeGenerated asc
+
+
+//collapse this down to a single query
+ DatabricksClusters 
+| where TimeGenerated >= todatetime("02 Aug 2022 00:00")
+| where TimeGenerated <= todatetime("02 Aug 2022 08:00")
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterId = coalesce(extractjson("$.['cluster_id']", tostring(rparams))
+                        ,extractjson("$.['clusterId']", tostring(rparams))
+                        ,extractjson("$.['cluster_id']", tostring(response.result)))
+| extend ClusterName = coalesce(rparams.clusterName
+                                , rparams.cluster_name)

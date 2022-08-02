@@ -106,3 +106,5 @@ JobLastRow
 | join kind=inner JobFirstRow on ClusterId
 | project ClusterId, RunID, Duration = datetime_diff("second", jLastRow, jFirstRow)
 
+//relating jobId, runId and clusterId
+// from runStart
