@@ -1,0 +1,13 @@
+DatabricksClusters
+| where ActionName == "resize"
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend StatusCode = tostring(response.statusCode)
+| extend ClusterId = coalesce(extractjson("$.['cluster_id']", tostring(rparams))
+                        ,extractjson("$.['clusterId']", tostring(rparams))
+                        ,extractjson("$.['cluster_id']", tostring(response.result)))
+| extend ClusterName = coalesce(rparams.clusterName
+                                , rparams.cluster_name)
+| extend CustomTags = rparams.custom_tags
+| extend InstPoolId = rparams.instance_pool_id, ResizeCause = tostring(rparams.cause)
+| where ResizeCause == "AUTORECOVERY"
