@@ -1,0 +1,20 @@
+DatabricksInstancePools 
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend InstancePoolID = extractjson("$.['instance_pool_id']", tostring(response.result))
+| extend NodeType = tostring(rparams.node_type_id)
+    , InstancePoolName = tostring(rparams.instance_pool_name)
+    , MinIdleInstances = tostring(rparams.min_idle_instances)
+
+
+
+//per hour cost for cluster
+//example cost for 1 hour of cluster with 1 node, from pricing calculator
+//get actual names, id etc from query above, if you created the pool after you completed the diag settings integration
+let instPools =  datatable(InstancePoolID:string, PoolName:string
+            , NodeType:string, DBUsage:int, DBUCost:decimal, VMCost:decimal, MinIdleInstances:int, Currency:string)
+            ['0112-102712-own658-pool-9urlhql1', 'Pool0012', 'E16as v4', 4, 1.00, 1.01, 0, 'GBP',
+             '0812-131731-homie204-pool-2U1OYTum', 'Pool0812', 'D13 v2', 2, 0.50, 0.36, 0, 'GBP',
+             '1207-171037-steer985-pool-4hkjz8hd', 'Pool1207', 'L16s', 4, 1.00, 1.24, 0, 'GBP'];
+instPools
+

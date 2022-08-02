@@ -1,44 +1,47 @@
 # Monitoring Azure Databricks with Log Analytics
 
 
-Insights into logs
+Azure Databricks has an in-built [monitoring capability](https://docs.microsoft.com/en-gb/azure/databricks/administration-guide/account-settings/azure-diagnostic-logs). 
 
-DatabricksClusters 
-| distinct ActionName
+For additional capabilities or for integrating with other logs, or across workspaces, then using the standard Log Analytics integration is very useful.
+Add [Diagnostic settings](/media/DiagnosticSettings.png).
 
-ActionName
-start
-create
-startResult
-resize
-deleteResult
-resizeResult
-delete
-createResult
+For further useful logging references, see [this list of useful reading](/useful_reading.md).
+
+## *Contents*
 
 
-//find a specific job cluster
-DatabricksClusters 
-| extend rparams = parse_json(RequestParams)
-| extend response = parse_json(Response)
-| extend StatusCode = response.statusCode
-| extend ClusterId = coalesce(extractjson("$.['cluster_id']", tostring(rparams))
-                        ,extractjson("$.['clusterId']", tostring(rparams))
-                        ,extractjson("$.['cluster_id']", tostring(response.result)))
-| extend ClusterName = coalesce(rparams.clusterName
-                                , rparams.cluster_name)
-| order by TimeGenerated asc
-| where ClusterId == "0721-080313-uztqenre"
 
 
-For job clusters, the following events exists (from ActionName):
-create
-delete
-resize
-deleteResult
-createResult
 
-For job clusters,
+## Insights into logs
+
+The following logs are the core of what is being examined here.
+
+DatabricksClusters
+DatabricksJobs
+
+# DatabricksClusters
+For the Cluster logs, there is unique list of Actions
+
+*ActionName*
+- start
+- create
+- startResult
+- resize
+- deleteResult
+- resizeResult
+- delete
+- createResult
+
+For job clusters the following events exists (from ActionName):
++ create
++ delete
++ resize
++ deleteResult
++ createResult
+
+For job clusters:
 create, createResult, deleteResult and resizeResult include the cluster name via Response.????
 delete events do not include cluster name
 
@@ -50,6 +53,8 @@ there is also a resize event that occurs
     with a target_workers inside autoscale
     or just num_workers
     both have a cause
+
+the instance_pool_id is part of the cluster create event
 
 --investigate cause of AUTORECOVERY events in resize
 

@@ -1,3 +1,5 @@
+//defunct - queries have moved on/improved
+
 // get ClusterId2 - ClusterId1 for most RunIds, ClusterId2 also contains instance_pool_id from new cluster request
 DatabricksJobs 
 | extend rparams1 = parse_json(RequestParams)
@@ -84,6 +86,7 @@ JobRows
 
 
 //job duration
+//fancy way that only kind of works
 let JobLastRow = DatabricksJobs 
 | where ActionName != "changeJobAcl"
 | extend rparams = parse_json(RequestParams),response = parse_json(Response)

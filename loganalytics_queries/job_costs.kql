@@ -1,0 +1,360 @@
+DatabricksAccounts
+| where TimeGenerated >= todatetime("02 Aug 2022 03:50")
+| where TimeGenerated <= todatetime("02 Aug 2022 04:51")
+
+
+DatabricksJobs
+| where TimeGenerated >= todatetime("02 Aug 2022 03:50")
+| where TimeGenerated <= todatetime("02 Aug 2022 04:51")
+| order by TimeGenerated asc 
+
+
+//!! Check for response code != 200 in response.statusCode
+
+
+
+//job duration - fancy way that does not quite work
+let JobLastRow = DatabricksJobs 
+| where ActionName != "changeJobAcl"
+| extend rparams = parse_json(RequestParams),response = parse_json(Response)
+| extend RunID = coalesce(extractjson("$.['run_id']", tostring(rparams))
+    , extractjson("$.['runId']", tostring(rparams))
+    , extractjson("$.['run_id']", tostring(response.result)))
+| extend ClusterId = extractjson("$.['clusterId']", tostring(rparams))
+| where isnotempty(ClusterId) 
+| summarize jLastRow = max(TimeGenerated) by ClusterId, RunID;
+let JobFirstRow = DatabricksJobs 
+| where ActionName != "changeJobAcl"
+| extend rparams = parse_json(RequestParams),response = parse_json(Response)
+| extend RunID = coalesce(extractjson("$.['run_id']", tostring(rparams))
+    , extractjson("$.['runId']", tostring(rparams))
+    , extractjson("$.['run_id']", tostring(response.result)))
+| extend ClusterId = extractjson("$.['clusterId']", tostring(rparams))
+| where isnotempty(ClusterId)
+| summarize jFirstRow = min(TimeGenerated) by ClusterId, RunID;
+JobLastRow
+| join kind=inner JobFirstRow on ClusterId
+| project ClusterId, RunID, Duration = datetime_diff("second", jLastRow, jFirstRow)
+| where RunID  =="15684772"
+
+DatabricksJobs
+| where ActionName =="runStart"
+| where TimeGenerated >= todatetime("02 Aug 2022 03:57")
+| where TimeGenerated <= todatetime("02 Aug 2022 04:00")
+| extend rparams = parse_json(RequestParams)
+| extend RunId = rparams.runId, JobId = rparams.jobId, ClusterID = rparams.clusterId
+
+
+DatabricksJobs
+| summarize by ActionName
+
+
+DatabricksJobs
+| where ActionName =="changeJobAcl"
+| where TimeGenerated >= todatetime("02 Aug 2022 03:57")
+| where TimeGenerated <= todatetime("02 Aug 2022 04:50")
+| order by TimeGenerated asc
+| extend rparams = parse_json(RequestParams)
+| extend RunId = rparams.run_id
+
+DatabricksJobs
+| where ActionName =="submitRun"
+| where TimeGenerated >= todatetime("02 Aug 2022 03:57")
+| where TimeGenerated <= todatetime("02 Aug 2022 04:50")
+| order by TimeGenerated asc
+| extend response = parse_json(Response)
+| extend RunId =  extractjson("$.['run_id']", tostring(response.result))
+
+
+DatabricksJobs
+| where ActionName =="runSucceeded"
+| where TimeGenerated >= todatetime("02 Aug 2022 03:57")
+| where TimeGenerated <= todatetime("02 Aug 2022 04:50")
+| order by TimeGenerated asc
+| extend response = parse_json(Response)
+
+DatabricksJobs
+| where ActionName =="deleteRun"
+//| where TimeGenerated >= todatetime("02 Aug 2022 03:57")
+//| where TimeGenerated <= todatetime("02 Aug 2022 04:50")
+//| order by TimeGenerated asc
+| extend response = parse_json(Response)
+
+
+//all events for a job
+let j_cl = DatabricksJobs
+| where ActionName in ("runStart","runFailed","runSucceeded")
+| extend rparams = parse_json(RequestParams)
+| extend RunId = tostring(rparams.runId), JobId = rparams.jobId, ClusterID = rparams.clusterId
+| project RunTimeGen = TimeGenerated, RunId, JobId, ClusterID, RunParams = RequestParams, RunActionName = ActionName;
+let j_ru = DatabricksJobs
+| where ActionName in ("getRunOutput","submitRun","runTriggered", "cancel", "runNow", "deleteRun")
+| extend rparams = parse_json(RequestParams), response = parse_json(Response)
+| extend RunId = coalesce(tostring(rparams.run_id), tostring(rparams.runId), extractjson("$.['run_id']", tostring(response.result)))
+| project RunId, RunningParams = RequestParams, RunningTimeGen = TimeGenerated, Response, RunningActionName = ActionName;
+let j_jo = DatabricksJobs
+| where ActionName == ("update")
+| extend rparams = parse_json(RequestParams)
+| extend JobId = rparams.job_id;
+j_cl
+| join kind=leftouter j_ru on RunId
+| order by RunId, RunningTimeGen
+
+
+
+//just get start and end events for a job
+let j_start = DatabricksJobs
+| where ActionName == "runStart"
+| extend rparams = parse_json(RequestParams)
+| extend RunId = tostring(rparams.runId), JobId = rparams.jobId, ClusterID = rparams.clusterId
+| project StartTimeGen = TimeGenerated, RunId, JobId, ClusterID, StartParams = RequestParams;
+let j_end = DatabricksJobs
+| where ActionName in ("runFailed","runSucceeded")
+| extend rparams = parse_json(RequestParams)
+| extend RunId = tostring(rparams.runId), JobId = rparams.jobId, ClusterID = rparams.clusterId
+| project EndTimeGen = TimeGenerated, RunId, JobId, ClusterID, EndParams = RequestParams, EndActionName = ActionName;
+j_start
+| join kind=leftouter j_end on RunId
+| order by RunId, StartTimeGen
+
+
+
+//job duration
+let j_start = DatabricksJobs
+| where ActionName == "runStart"
+| extend rparams = parse_json(RequestParams)
+| extend RunId = tostring(rparams.runId), JobId = rparams.jobId, ClusterID = rparams.clusterId
+| project StartTimeGen = TimeGenerated, RunId, JobId, ClusterID, StartParams = RequestParams;
+let j_end = DatabricksJobs
+| where ActionName in ("runFailed","runSucceeded")
+| extend rparams = parse_json(RequestParams)
+| extend RunId = tostring(rparams.runId), JobId = rparams.jobId, ClusterID = rparams.clusterId
+| project EndTimeGen = TimeGenerated, RunId, JobId, ClusterID, EndParams = RequestParams, EndActionName = ActionName;
+j_start
+| join kind=leftouter j_end on RunId
+| extend JobDuration =datetime_diff("second", EndTimeGen, StartTimeGen)
+| project EndTimeGen, ClusterID, RunId, JobId, EndActionName, JobDuration, EndParams
+
+
+//get info about approx cost
+//get pool_id for jobs clusters
+DatabricksAccounts
+| where TimeGenerated >= todatetime("02 Aug 2022 03:50")
+| where TimeGenerated <= todatetime("02 Aug 2022 04:51")
+
+
+DatabricksJobs
+| where TimeGenerated >= todatetime("02 Aug 2022 03:50")
+| where TimeGenerated <= todatetime("02 Aug 2022 04:51")
+| order by TimeGenerated asc 
+
+
+//!! Check for response code != 200 in response.statusCode
+
+
+
+//job duration - fancy way that does not quite work
+let JobLastRow = DatabricksJobs 
+| where ActionName != "changeJobAcl"
+| extend rparams = parse_json(RequestParams),response = parse_json(Response)
+| extend RunID = coalesce(extractjson("$.['run_id']", tostring(rparams))
+    , extractjson("$.['runId']", tostring(rparams))
+    , extractjson("$.['run_id']", tostring(response.result)))
+| extend ClusterId = extractjson("$.['clusterId']", tostring(rparams))
+| where isnotempty(ClusterId) 
+| summarize jLastRow = max(TimeGenerated) by ClusterId, RunID;
+let JobFirstRow = DatabricksJobs 
+| where ActionName != "changeJobAcl"
+| extend rparams = parse_json(RequestParams),response = parse_json(Response)
+| extend RunID = coalesce(extractjson("$.['run_id']", tostring(rparams))
+    , extractjson("$.['runId']", tostring(rparams))
+    , extractjson("$.['run_id']", tostring(response.result)))
+| extend ClusterId = extractjson("$.['clusterId']", tostring(rparams))
+| where isnotempty(ClusterId)
+| summarize jFirstRow = min(TimeGenerated) by ClusterId, RunID;
+JobLastRow
+| join kind=inner JobFirstRow on ClusterId
+| project ClusterId, RunID, Duration = datetime_diff("second", jLastRow, jFirstRow)
+| where RunID  =="15684772"
+
+DatabricksJobs
+| where ActionName =="runStart"
+| where TimeGenerated >= todatetime("02 Aug 2022 03:57")
+| where TimeGenerated <= todatetime("02 Aug 2022 04:00")
+| extend rparams = parse_json(RequestParams)
+| extend RunId = rparams.runId, JobId = rparams.jobId, ClusterID = rparams.clusterId
+
+
+DatabricksJobs
+| summarize by ActionName
+
+
+DatabricksJobs
+| where ActionName =="changeJobAcl"
+| where TimeGenerated >= todatetime("02 Aug 2022 03:57")
+| where TimeGenerated <= todatetime("02 Aug 2022 04:50")
+| order by TimeGenerated asc
+| extend rparams = parse_json(RequestParams)
+| extend RunId = rparams.run_id
+
+DatabricksJobs
+| where ActionName =="submitRun"
+| where TimeGenerated >= todatetime("02 Aug 2022 03:57")
+| where TimeGenerated <= todatetime("02 Aug 2022 04:50")
+| order by TimeGenerated asc
+| extend response = parse_json(Response)
+| extend RunId =  extractjson("$.['run_id']", tostring(response.result))
+
+
+DatabricksJobs
+| where ActionName =="runSucceeded"
+| where TimeGenerated >= todatetime("02 Aug 2022 03:57")
+| where TimeGenerated <= todatetime("02 Aug 2022 04:50")
+| order by TimeGenerated asc
+| extend response = parse_json(Response)
+
+DatabricksJobs
+| where ActionName =="deleteRun"
+//| where TimeGenerated >= todatetime("02 Aug 2022 03:57")
+//| where TimeGenerated <= todatetime("02 Aug 2022 04:50")
+//| order by TimeGenerated asc
+| extend response = parse_json(Response)
+
+
+//all events for a job
+let j_cl = DatabricksJobs
+| where ActionName in ("runStart","runFailed","runSucceeded")
+| extend rparams = parse_json(RequestParams)
+| extend RunId = tostring(rparams.runId), JobId = rparams.jobId, ClusterID = rparams.clusterId
+| project RunTimeGen = TimeGenerated, RunId, JobId, ClusterID, RunParams = RequestParams, RunActionName = ActionName;
+let j_ru = DatabricksJobs
+| where ActionName in ("getRunOutput","submitRun","runTriggered", "cancel", "runNow", "deleteRun")
+| extend rparams = parse_json(RequestParams), response = parse_json(Response)
+| extend RunId = coalesce(tostring(rparams.run_id), tostring(rparams.runId), extractjson("$.['run_id']", tostring(response.result)))
+| project RunId, RunningParams = RequestParams, RunningTimeGen = TimeGenerated, Response, RunningActionName = ActionName;
+let j_jo = DatabricksJobs
+| where ActionName == ("update")
+| extend rparams = parse_json(RequestParams)
+| extend JobId = rparams.job_id;
+j_cl
+| join kind=leftouter j_ru on RunId
+| order by RunId, RunningTimeGen
+
+
+
+//just get start and end events for a job
+let j_start = DatabricksJobs
+| where ActionName == "runStart"
+| extend rparams = parse_json(RequestParams)
+| extend RunId = tostring(rparams.runId), JobId = rparams.jobId, ClusterID = rparams.clusterId
+| project StartTimeGen = TimeGenerated, RunId, JobId, ClusterID, StartParams = RequestParams;
+let j_end = DatabricksJobs
+| where ActionName in ("runFailed","runSucceeded")
+| extend rparams = parse_json(RequestParams)
+| extend RunId = tostring(rparams.runId), JobId = rparams.jobId, ClusterID = rparams.clusterId
+| project EndTimeGen = TimeGenerated, RunId, JobId, ClusterID, EndParams = RequestParams, EndActionName = ActionName;
+j_start
+| join kind=leftouter j_end on RunId
+| order by RunId, StartTimeGen
+
+
+
+//job duration
+let j_start = DatabricksJobs
+| where ActionName == "runStart"
+| extend rparams = parse_json(RequestParams)
+| extend RunId = tostring(rparams.runId), JobId = rparams.jobId, ClusterID = rparams.clusterId
+| project StartTimeGen = TimeGenerated, RunId, JobId, ClusterID, StartParams = RequestParams;
+let j_end = DatabricksJobs
+| where ActionName in ("runFailed","runSucceeded")
+| extend rparams = parse_json(RequestParams)
+| extend RunId = tostring(rparams.runId), JobId = rparams.jobId, ClusterID = rparams.clusterId
+| project EndTimeGen = TimeGenerated, RunId, JobId, ClusterID, EndParams = RequestParams, EndActionName = ActionName;
+j_start
+| join kind=leftouter j_end on RunId
+| extend JobDuration =datetime_diff("second", EndTimeGen, StartTimeGen)
+| project EndTimeGen, ClusterID, RunId, JobId, EndActionName, JobDuration, EndParams
+
+
+//get info about approx cost
+//get pool_id for jobs clusters
+let pool_ids = DatabricksClusters
+| where ActionName == "create"
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterId = coalesce(extractjson("$.['cluster_id']", tostring(rparams))
+                        ,extractjson("$.['clusterId']", tostring(rparams))
+                        ,extractjson("$.['cluster_id']", tostring(response.result)))
+| extend ClusterName = coalesce(rparams.clusterName
+                                , rparams.cluster_name)
+| extend CustomTags = rparams.custom_tags, NumWorkers = rparams.num_workers
+| extend CustomTagRunName = tostring(extractjson("$.['RunName']", tostring(rparams.custom_tags)))
+| extend InstancePoolID = tostring(rparams.instance_pool_id);
+let instPools =  datatable(InstancePoolID:string, PoolName:string
+            , NodeType:string, DBUsage:int, DBUCost:decimal, VMCost:decimal, MinIdleInstances:int, Currency:string)
+            ['0112-102712-own658-pool-9urlhql1', 'Pool0012', 'E16as v4', 4, 1.00, 1.01, 0, 'GBP',
+             '0812-131731-homie204-pool-2U1OYTum', 'Pool0812', 'D13 v2', 2, 0.50, 0.36, 0, 'GBP',
+             '1207-171037-steer985-pool-4hkjz8hd', 'Pool1207', 'L16s', 4, 1.00, 1.24, 0, 'GBP'];
+let j_start = DatabricksJobs
+| where ActionName == "runStart"
+| extend rparams = parse_json(RequestParams)
+| extend RunId = tostring(rparams.runId), JobId = rparams.jobId, ClusterId = tostring(rparams.clusterId)
+| project StartTimeGen = TimeGenerated, RunId, JobId, ClusterId, StartParams = RequestParams;
+let j_end = DatabricksJobs
+| where ActionName in ("runFailed","runSucceeded")
+| extend rparams = parse_json(RequestParams)
+| extend RunId = tostring(rparams.runId), JobId = rparams.jobId, ClusterId = tostring(rparams.clusterId)
+| project EndTimeGen = TimeGenerated, RunId, JobId, ClusterId, EndParams = RequestParams, EndActionName = ActionName;
+j_start
+| join kind=leftouter j_end on RunId
+| extend JobDuration = toint(datetime_diff("second", EndTimeGen, StartTimeGen))
+| project EndTimeGen, ClusterId, RunId, JobId, EndActionName, JobDuration, EndParams
+| join kind=inner pool_ids on ClusterId
+| join kind=leftouter instPools on InstancePoolID
+| extend CostOfDBU = round(JobDuration*DBUCost/3600.00,3), CostOfCompute = round((JobDuration+60)*(NumWorkers+1)*VMCost/3600.00,3)
+| extend TotalClusterCost = CostOfCompute+CostOfDBU 
+| project TimeGenerated, JobId, RunId, ClusterId, ClusterName, CustomTagRunName, JobDuration, NumWorkers, InstancePoolID, PoolName, NodeType, DBUCost, VMCost, CostOfDBU, CostOfCompute, TotalClusterCost, Currency;
+
+
+//summarise by day
+//get info about approx cost
+//get pool_id for jobs clusters
+let pool_ids = DatabricksClusters
+| where ActionName == "create"
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterId = coalesce(extractjson("$.['cluster_id']", tostring(rparams))
+                        ,extractjson("$.['clusterId']", tostring(rparams))
+                        ,extractjson("$.['cluster_id']", tostring(response.result)))
+| extend ClusterName = coalesce(rparams.clusterName
+                                , rparams.cluster_name)
+| extend CustomTags = rparams.custom_tags, NumWorkers = rparams.num_workers
+| extend CustomTagRunName = tostring(extractjson("$.['RunName']", tostring(rparams.custom_tags)))
+| extend InstancePoolID = tostring(rparams.instance_pool_id);
+let instPools =  datatable(InstancePoolID:string, PoolName:string
+            , NodeType:string, DBUsage:int, DBUCost:decimal, VMCost:decimal, MinIdleInstances:int, Currency:string)
+            ['0112-102712-own658-pool-9urlhql1', 'Pool0012', 'E16as v4', 4, 1.00, 1.01, 0, 'GBP',
+             '0812-131731-homie204-pool-2U1OYTum', 'Pool0812', 'D13 v2', 2, 0.50, 0.36, 0, 'GBP',
+             '1207-171037-steer985-pool-4hkjz8hd', 'Pool1207', 'L16s', 4, 1.00, 1.24, 0, 'GBP'];
+let j_start = DatabricksJobs
+| where ActionName == "runStart"
+| extend rparams = parse_json(RequestParams)
+| extend RunId = tostring(rparams.runId), JobId = rparams.jobId, ClusterId = tostring(rparams.clusterId)
+| project StartTimeGen = TimeGenerated, RunId, JobId, ClusterId, StartParams = RequestParams;
+let j_end = DatabricksJobs
+| where ActionName in ("runFailed","runSucceeded")
+| extend rparams = parse_json(RequestParams)
+| extend RunId = tostring(rparams.runId), JobId = rparams.jobId, ClusterId = tostring(rparams.clusterId)
+| project EndTimeGen = TimeGenerated, RunId, JobId, ClusterId, EndParams = RequestParams, EndActionName = ActionName;
+j_start
+| join kind=leftouter j_end on RunId
+| extend JobDuration = toint(datetime_diff("second", EndTimeGen, StartTimeGen))
+| project EndTimeGen, ClusterId, RunId, JobId, EndActionName, JobDuration, EndParams
+| join kind=inner pool_ids on ClusterId
+| join kind=leftouter instPools on InstancePoolID
+| extend CostOfDBU = round(JobDuration*DBUCost/3600.00,3), CostOfCompute = round((JobDuration+60)*(NumWorkers+1)*VMCost/3600.00,3)
+| extend TotalClusterCost = CostOfCompute+CostOfDBU 
+| project TimeGenerated, JobId, RunId, ClusterId, ClusterName, CustomTagRunName, JobDuration, NumWorkers, InstancePoolID, PoolName, NodeType, DBUCost, VMCost, CostOfDBU, CostOfCompute, TotalClusterCost, Currency
+| summarize TotalCost = sum(TotalClusterCost), TotalVMCost = sum(CostOfCompute) , TotalDBUCost = sum(CostOfDBU) by RunDay = bin(TimeGenerated,1d)
