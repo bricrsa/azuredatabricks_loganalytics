@@ -1,0 +1,4 @@
+DatabricksClusters
+| extend ErrorMessage = parse_json(Response).errorMessage
+| where isnotempty(ErrorMessage)
+

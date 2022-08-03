@@ -11,12 +11,12 @@ For further useful logging references, see [this list of useful reading](/useful
 ## *Contents*
 
 - [Introduction - Insights into logs](#introduction---insights-into-logs)
+- [Specific scenario queries](#specific-queries-to-hightlight-key-information)
+- [Understanding Cluster costs](#understanding-cluster-costs-from-cluster-information)
 - [Understanding the various logs](#understanding-the-various-logs)
   - [DatabricksClusters](#databricksclusters)
   - [DatabricksAccounts](#databricksaccounts)
   - [DatabricksJobs](#databricksjobs)
-- [Specific scenario queries](#specific-queries-to-hightlight-key-information)
-- [Understanding Cluster costs](#understanding-cluster-costs-from-cluster-information)
 
 
 
@@ -27,6 +27,8 @@ The following logs are the core of what is being examined here.
 - DatabricksClusters
 - DatabricksAccounts
 - DatabricksJobs
+
+These highlight some very basic information about Clusters, Jobs and Account activity.
 
 
 ## Specific queries to hightlight key information
@@ -73,8 +75,6 @@ Note that the details of time do not appear within each log row, rather the Time
 
 ### **DatabricksClusters**
 
-[back to Contents](/README.md#contents)
-
 For the Cluster logs, there is [unique list of Actions](/loganalytics_queries/clusters_list_of_actions.kql)
 
 *ActionName*
@@ -99,7 +99,7 @@ For job clusters:
 - *createResult*, *deleteResult* and *resizeResult* includes the cluster name via RequestParams.clusterName
 - *delete* events do not include cluster name
 
-For jobs clusters, the provisioned resources or pool can be found in the create event
+For **jobs clusters**, the provisioned resources or pool can be found in the create event
 - in RequestParams
     use node_type_id and num_workers for SQL Analytics
     for pooled users = use instance_pool_id and driver_instance_pool_id and num_workers
@@ -110,7 +110,7 @@ For jobs clusters, the provisioned resources or pool can be found in the create 
 - the instance_pool_id is part of the cluster create event
 - investigate cause of AUTORECOVERY events in [resize](/loganalytics_queries/cluster_resize_autorecovery.kql)
 
-For interactive clusters, the following events exists (from ActionName):
+For **interactive clusters**, the following events exists (from ActionName):
 - start
 - startResult
 - resizeResult
@@ -119,8 +119,6 @@ For interactive clusters, the following events exists (from ActionName):
 For interactive clusters,
 - startResult, resizeResult, deleteResult include cluster name via
 - start events do not include cluster name
-
-[back to Contents](/README.md#contents)
 
 ### **DatabricksAccounts**
 
@@ -159,5 +157,7 @@ Event details:
 *with Nothing*
 - changeJobAcl
 
-[back to Contents](/README.md#contents)
+
+
+*[back to Contents](/README.md#contents)*
 
