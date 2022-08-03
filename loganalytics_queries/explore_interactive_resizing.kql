@@ -1,0 +1,29 @@
+DatabricksClusters 
+| where TimeGenerated >=todatetime("18 July 2022 11:00")
+| where TimeGenerated <=todatetime("19 July 2022")
+| where ActionName == 'resize' //create a cluster
+| extend rparams = parse_json(RequestParams)
+| extend cid = rparams.cluster_id
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterId = extractjson("$.['cluster_id']", tostring(rparams))
+| extend Message = response.result
+| order by TimeGenerated asc
+| where ClusterId =="0825-162800-bath65"
+
+let Clusters = datatable(ClusterId:string)
+    ["0825-162800-bath65"];
+DatabricksClusters 
+| where TimeGenerated >=todatetime("18 July 2022 11:00")
+| where TimeGenerated <=todatetime("19 July 2022")
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterId = coalesce(rparams.cluster_id
+                        ,extractjson("$.['cluster_id']", tostring(rparams))
+                        ,extractjson("$.['clusterId']", tostring(rparams))
+                        ,extractjson("$.['cluster_id']", tostring(response.result)))
+| extend Message = response.result
+| join kind=inner Clusters on ClusterId
+| order by TimeGenerated asc
+
