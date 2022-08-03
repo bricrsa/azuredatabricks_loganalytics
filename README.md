@@ -15,7 +15,7 @@ For further useful logging references, see [this list of useful reading](/useful
   - [DatabricksClusters](#databricksclusters)
   - [DatabricksAccounts](#databricksaccounts)
   - [DatabricksJobs](#databricksjobs)
-- [Understanding all Cluster logs with ClusterId](#understanding-all-cluster-logs-with-clusterid)
+- [Specific scenario queries](#specific-queries-to-hightlight-key-information)
 - [Understanding Cluster costs](#understanding-cluster-costs-from-cluster-information)
 
 
@@ -27,6 +27,45 @@ The following logs are the core of what is being examined here.
 - DatabricksClusters
 - DatabricksAccounts
 - DatabricksJobs
+
+
+## Specific queries to hightlight key information
+
+- [Query DatabricksCluster to get clusterId](/loganalytics_queries/find_a_cluster_journey.kql)
+  - detailed examination by each event in the cluster logs
+- [Understanding Job Start and Ends](/loganalytics_queries/JobStart_Ends.kql)
+  - Just using Jobs logs, get a list of all events
+  - Using Jobs logs, join start and end to get a single row per job, with status
+- [Link ADF to ADB and get Duration, Status and Cost](/loganalytics_queries/adf_linked_adb.kql)
+  - Link ADF Activity Run logs to Databricks Cluster logs, to Databricks Jobs log, with Pool costs
+  - Only Pools considered
+  - For fuller discussion on costs, see [Cluster cost section](#understanding-cluster-costs-from-cluster-information)
+
+## Understanding Cluster costs from Cluster information
+
+Databricks costs are broken into two main sections. Costs for Databricks Units (DBU) and costs for Azure resources.
+
+The cost for DBU is relatively simple for PAYG use cases and has a relationship with the VM capability and the Databricks Tier of Service . If you have a reservation with Databricks for DBU, this is a little more complicated to work out, so will be handled seperately.
+
+The cost for Azure resources largely related to VM, Storage, Networking etc, with the largest of these typically being the VM costs. 
+
+You can use the Azure Pricing Calculator to get a rough guide on the cost of a particular cluster per hour. There are some variations that occur, such has how many disks get added to each node, but we will not consider that here.
+
+Using the Cluster logs and the create event, we can discover the pool id and number of workers for jobs clusters.
+
+We can also create a definition for the costs of each pool, using information from the Azure Pricing Calculator.
+```
+let instPools =  datatable(InstancePoolID:string, PoolName:string
+            , NodeType:string, DBUsage:int, DBUCost:decimal, VMCost:decimal, MinIdleInstances:int, Currency:string)
+            ['0112-102712-own658-pool-9urlhql1', 'Pool0012', 'E16as v4', 4, 1.00, 1.01, 0, 'GBP',
+             '0812-131731-homie204-pool-2U1OYTum', 'Pool0812', 'D13 v2', 2, 0.50, 0.36, 0, 'GBP',
+             '1207-171037-steer985-pool-4hkjz8hd', 'Pool1207', 'L16s', 4, 1.00, 1.24, 0, 'GBP'];
+```
+
+If we had the Log Analytics (Diagnostic Settings) integration turned on when we created or modified the pool, we should be able to capture pool information via this [query](/loganalytics_queries/pools.kql).
+
+By linking together cluster create information from the Clusters log, with Start and End information from the Jobs log, we can detect cluster duration and specification. An example query that generates a job cost can be found [here](/loganalytics_queries/job_costs.kql).
+
 
 ## Understanding the various logs
 
@@ -122,40 +161,3 @@ Event details:
 
 [back to Contents](/README.md#contents)
 
-
-## Specific queries to hightlight key information
-
-- [Query DatabricksCluster to get clusterId](/loganalytics_queries/find_a_cluster_journey.kql)
-  - detailed examination by each event in the cluster logs
-- [Understanding Job Start and Ends](/loganalytics_queries/JobStart_Ends.kql)
-  - Just using Jobs logs, get a list of all events
-  - Using Jobs logs, join start and end to get a single row per job, with status
-- [Link ADF to ADB and get Duration, Status and Cost](/loganalytics_queries/adf_linked_adb.kql)
-  - Link ADF Activity Run logs to Databricks Cluster logs, to Databricks Jobs log, with Pool costs
-  - Only Pools considered
-  - For fuller discussion on costs, see [Cluster cost section](#understanding-cluster-costs-from-cluster-information)
-
-## Understanding Cluster costs from Cluster information
-
-Databricks costs are broken into two main sections. Costs for Databricks Units (DBU) and costs for Azure resources.
-
-The cost for DBU is relatively simple for PAYG use cases and has a relationship with the VM capability and the Databricks Tier of Service . If you have a reservation with Databricks for DBU, this is a little more complicated to work out, so will be handled seperately.
-
-The cost for Azure resources largely related to VM, Storage, Networking etc, with the largest of these typically being the VM costs. 
-
-You can use the Azure Pricing Calculator to get a rough guide on the cost of a particular cluster per hour. There are some variations that occur, such has how many disks get added to each node, but we will not consider that here.
-
-Using the Cluster logs and the create event, we can discover the pool id and number of workers for jobs clusters.
-
-We can also create a definition for the costs of each pool, using information from the Azure Pricing Calculator.
-```
-let instPools =  datatable(InstancePoolID:string, PoolName:string
-            , NodeType:string, DBUsage:int, DBUCost:decimal, VMCost:decimal, MinIdleInstances:int, Currency:string)
-            ['0112-102712-own658-pool-9urlhql1', 'Pool0012', 'E16as v4', 4, 1.00, 1.01, 0, 'GBP',
-             '0812-131731-homie204-pool-2U1OYTum', 'Pool0812', 'D13 v2', 2, 0.50, 0.36, 0, 'GBP',
-             '1207-171037-steer985-pool-4hkjz8hd', 'Pool1207', 'L16s', 4, 1.00, 1.24, 0, 'GBP'];
-```
-
-If we had the Log Analytics (Diagnostic Settings) integation turned on when we created or modified the pool, we should be able to capture pool information via this [query](/loganalytics_queries/pools.kql).
-
-By linking together cluster create information from the Clusters log, with Start and End information from the Jobs log, we can detect cluster duration and specification. An example query that generates a job cost can be found [here](/loganalytics_queries/job_costs.kql).
