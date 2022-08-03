@@ -1,4 +1,4 @@
-# DatabricksClusters
+### **DatabricksClusters**
 
 [back to Contents](/README.md#contents)
 
@@ -57,12 +57,13 @@ From Databricks accounts, we can see the UserAgent that logged in
 
 From DatabricksJobs
 
-for event runStart
-    from RequestParams we can get 
-- jobCluster, clusterId, idInJob, jobClusterType, jobId
-- jobTaskType, jobTerminalState, jobTriggerType, multitaskParentRunId
-- orgId, runId, taskDependencies, taskKey
-
+for event *runStart*
+-    from RequestParams we can get 
+```
+    - jobCluster, clusterId, idInJob, jobClusterType, jobId
+    - jobTaskType, jobTerminalState, jobTriggerType, multitaskParentRunId
+    - orgId, runId, taskDependencies, taskKey
+```
 
 Event details:
 
