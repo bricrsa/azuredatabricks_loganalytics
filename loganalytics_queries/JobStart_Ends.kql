@@ -1,0 +1,35 @@
+
+//simple query that just lists the events
+let j_cl = DatabricksJobs
+| where ActionName in ("runStart","runFailed","runSucceeded")
+| extend rparams = parse_json(RequestParams)
+| extend RunId = tostring(rparams.runId), JobId = rparams.jobId, ClusterID = rparams.clusterId
+| project RunTimeGen = TimeGenerated, RunId, JobId, ClusterID, RunParams = RequestParams, Response, ActionName;
+let j_ru = DatabricksJobs
+| where ActionName in ("getRunOutput","submitRun","runTriggered", "cancel", "runNow", "deleteRun")
+| extend rparams = parse_json(RequestParams), response = parse_json(Response)
+| extend RunId = coalesce(tostring(rparams.run_id), tostring(rparams.runId), extractjson("$.['run_id']", tostring(response.result)))
+| project RunTimeGen = TimeGenerated, RunId, RunParams = RequestParams, Response, ActionName;
+let j_jo = DatabricksJobs
+| where ActionName == ("update")
+| extend rparams = parse_json(RequestParams)
+| extend JobId = rparams.job_id
+| project RunTimeGen = TimeGenerated, JobId, RunParams = RequestParams, Response, ActionName;
+j_cl
+| union j_ru
+| order by RunId, RunTimeGen asc
+
+//just get start and end events for a job
+let j_start = DatabricksJobs
+| where ActionName == "runStart"
+| extend rparams = parse_json(RequestParams)
+| extend RunId = tostring(rparams.runId), JobId = rparams.jobId, ClusterID = rparams.clusterId
+| project StartTimeGen = TimeGenerated, RunId, JobId, ClusterID, StartParams = RequestParams;
+let j_end = DatabricksJobs
+| where ActionName in ("runFailed","runSucceeded")
+| extend rparams = parse_json(RequestParams)
+| extend RunId = tostring(rparams.runId), JobId = rparams.jobId, ClusterID = rparams.clusterId
+| project EndTimeGen = TimeGenerated, RunId, JobId, ClusterID, EndParams = RequestParams, EndActionName = ActionName;
+j_start
+| join kind=leftouter j_end on RunId
+| order by RunId, StartTimeGen

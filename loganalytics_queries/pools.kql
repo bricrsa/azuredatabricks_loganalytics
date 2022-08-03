@@ -5,6 +5,7 @@ DatabricksInstancePools
 | extend NodeType = tostring(rparams.node_type_id)
     , InstancePoolName = tostring(rparams.instance_pool_name)
     , MinIdleInstances = tostring(rparams.min_idle_instances)
+| project TimeGenerated, rparams, response, InstancePoolID, InstancePoolName, MinIdleInstances, NodeType
 
 
 
