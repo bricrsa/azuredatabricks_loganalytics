@@ -2,3 +2,20 @@ DatabricksClusters
 | extend ErrorMessage = parse_json(Response).errorMessage
 | where isnotempty(ErrorMessage)
 
+//count errors by hour, group by ErrorMessage and Day-Hour
+DatabricksClusters
+| extend ErrorMessage = tostring(parse_json(Response).errorMessage)
+| where isnotempty(ErrorMessage)
+| summarize ErrorCount =count(TimeGenerated) by ErrorMessage, DayHour = bin(TimeGenerated,1h)
+| order by DayHour
+
+
+//count errors by hour, group by Day
+//count errors by hour, group by Day
+DatabricksClusters
+| extend ADBWorkspaceName = substring(
+                reverse(split(reverse(_ResourceId),"/",0)),2,strlen(split(reverse(_ResourceId),"/",0))-4)
+| extend ErrorMessage = tostring(parse_json(Response).errorMessage)
+| where isnotempty(ErrorMessage)
+| summarize ErrorCount =count(TimeGenerated) by ADBWorkspaceName, Day = bin(TimeGenerated,1d)
+| order by Day

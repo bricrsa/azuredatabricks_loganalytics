@@ -42,6 +42,8 @@ These highlight some very basic information about Clusters, Jobs and Account act
   - Link ADF Activity Run logs to Databricks Cluster logs, to Databricks Jobs log, with Pool costs
   - Only Pools considered
   - For fuller discussion on costs, see [Cluster cost section](#understanding-cluster-costs-from-cluster-information)
+- [Various cluster errors](/loganalytics_queries/cluster_error.kql)
+- [Autorecovery records](/loganalytics_queries/cluster_resize_autorecovery.kql)
 
 ## Understanding Cluster costs from Cluster information
 
