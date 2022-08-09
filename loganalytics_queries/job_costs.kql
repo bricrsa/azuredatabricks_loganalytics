@@ -51,7 +51,7 @@ j_start
 | project EndTimeGen, ClusterId, RunId, JobId, EndActionName, JobDuration, EndParams
 | join kind=inner pool_ids on ClusterId
 | join kind=leftouter instPools on InstancePoolID
-| extend CostOfDBU = round(JobDuration*DBUCost/3600.00,3), CostOfCompute = round((JobDuration+60)*(NumWorkers+1)*VMCost/3600.00,3)
+| extend CostOfDBU = round(JobDuration*(NumWorkers+1)*DBUCost/3600.00,3), CostOfCompute = round((JobDuration+60)*(NumWorkers+1)*VMCost/3600.00,3)
 | extend TotalClusterCost = CostOfCompute+CostOfDBU 
 | project TimeGenerated, JobId, RunId, ClusterId, ClusterName, CustomTagRunName, JobDuration, NumWorkers, InstancePoolID, PoolName, NodeType, DBUCost, VMCost, CostOfDBU, CostOfCompute, TotalClusterCost, Currency;
 
@@ -93,7 +93,25 @@ j_start
 | project EndTimeGen, ClusterId, RunId, JobId, EndActionName, JobDuration, EndParams
 | join kind=inner pool_ids on ClusterId
 | join kind=leftouter instPools on InstancePoolID
-| extend CostOfDBU = round(JobDuration*DBUCost/3600.00,3), CostOfCompute = round((JobDuration+60)*(NumWorkers+1)*VMCost/3600.00,3)
+| extend CostOfDBU = round(JobDuration*(NumWorkers+1)*DBUCost/3600.00,3), CostOfCompute = round((JobDuration+60)*(NumWorkers+1)*VMCost/3600.00,3)
 | extend TotalClusterCost = CostOfCompute+CostOfDBU 
 | project TimeGenerated, JobId, RunId, ClusterId, ClusterName, CustomTagRunName, JobDuration, NumWorkers, InstancePoolID, PoolName, NodeType, DBUCost, VMCost, CostOfDBU, CostOfCompute, TotalClusterCost, Currency
 | summarize TotalCost = sum(TotalClusterCost), TotalVMCost = sum(CostOfCompute) , TotalDBUCost = sum(CostOfDBU) by RunDay = bin(TimeGenerated,1d)
+
+
+//just get the pool ids in use
+DatabricksClusters
+| where ActionName == "create"
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterId = coalesce(extractjson("$.['cluster_id']", tostring(rparams))
+                        ,extractjson("$.['clusterId']", tostring(rparams))
+                        ,extractjson("$.['cluster_id']", tostring(response.result)))
+| extend ClusterName = coalesce(rparams.clusterName
+                                , rparams.cluster_name)
+| extend CustomTags = rparams.custom_tags, NumWorkers = rparams.num_workers
+| extend CustomTagRunName = tostring(extractjson("$.['RunName']", tostring(rparams.custom_tags)))
+| extend InstancePoolID = tostring(rparams.instance_pool_id)
+| summarize ClusterCount=count(ClusterId) by InstancePoolID
+

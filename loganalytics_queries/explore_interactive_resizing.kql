@@ -27,3 +27,40 @@ DatabricksClusters
 | join kind=inner Clusters on ClusterId
 | order by TimeGenerated asc
 
+
+//just get the pool ids in use
+DatabricksClusters
+| where ActionName == "create"
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterId = coalesce(extractjson("$.['cluster_id']", tostring(rparams))
+                        ,extractjson("$.['clusterId']", tostring(rparams))
+                        ,extractjson("$.['cluster_id']", tostring(response.result)))
+| extend ClusterName = coalesce(rparams.clusterName
+                                , rparams.cluster_name)
+| extend CustomTags = rparams.custom_tags, NumWorkers = rparams.num_workers
+| extend CustomTagRunName = tostring(extractjson("$.['RunName']", tostring(rparams.custom_tags)))
+| extend InstancePoolID = tostring(rparams.instance_pool_id)
+| summarize ClusterCount=count(ClusterId) by InstancePoolID
+
+
+//classify clusters using SQL endpoints vs jobs clusters
+DatabricksClusters
+| where ActionName == "create"
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterId = coalesce(extractjson("$.['cluster_id']", tostring(rparams))
+                        ,extractjson("$.['clusterId']", tostring(rparams))
+                        ,extractjson("$.['cluster_id']", tostring(response.result)))
+| extend ClusterName = tostring(coalesce(rparams.clusterName
+                                , rparams.cluster_name))
+| extend CustomTags = rparams.custom_tags, NumWorkers = rparams.num_workers
+| extend CustomTagRunName = tostring(extractjson("$.['RunName']", tostring(rparams.custom_tags)))
+| extend InstancePoolID = tostring(rparams.instance_pool_id)
+//| where isempty( InstancePoolID)
+| extend NodeType = rparams.node_type_id, SQLEndpointID =extractjson("$.['SqlEndpointId']", tostring(rparams.custom_tags))
+| extend ClusterType = iif(isempty(SQLEndpointID),"Job","SQL")
+| summarize ClusterCount = count(ClusterId) by ClusterType, Day = bin(TimeGenerated,1d)
+| render columnchart 
