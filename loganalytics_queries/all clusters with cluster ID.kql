@@ -1,0 +1,117 @@
+//all cluster output with ClusterID
+let c_id = DatabricksClusters 
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterId = extractjson("$.['cluster_id']", tostring(rparams))
+| where isnotempty( ClusterId);
+let cid = DatabricksClusters 
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterId = extractjson("$.['clusterId']", tostring(rparams))
+| where isnotempty( ClusterId);
+let c_idr = DatabricksClusters 
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterId = extractjson("$.['cluster_id']", tostring(response.result))
+| where isnotempty( ClusterId);
+c_id | union cid, c_idr
+| order by TimeGenerated asc
+
+//clusters created for jobs
+
+
+//find a job cluster
+DatabricksClusters
+| extend ClusterCreator = tostring(parse_json(RequestParams).cluster_creator)
+//| where ClusterCreator != "JOB_LAUNCHER"
+| extend ClusterId = extractjson("$.['cluster_id']", tostring(parse_json(Response).result))
+| distinct ClusterCreator
+
+//all cluster output with ClusterID
+let c_id = DatabricksClusters 
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterId = extractjson("$.['cluster_id']", tostring(rparams))
+| where isnotempty( ClusterId);
+let cid = DatabricksClusters 
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterId = extractjson("$.['clusterId']", tostring(rparams))
+| where isnotempty( ClusterId);
+let c_idr = DatabricksClusters 
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterId = extractjson("$.['cluster_id']", tostring(response.result))
+| where isnotempty( ClusterId);
+c_id | union cid, c_idr
+| order by TimeGenerated asc
+| summarize dcount(ClusterId) by Date = bin(TimeGenerated,1h) , HourofDay = hourofday(TimeGenerated) ,OperationName
+
+
+
+//all cluster output with ClusterID - just create
+let c_idr = DatabricksClusters 
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterId = extractjson("$.['cluster_id']", tostring(response.result))
+| where isnotempty( ClusterId);
+c_idr
+| order by TimeGenerated asc
+| summarize ClusterCount = dcount(ClusterId) by Date = bin(TimeGenerated,1h) ,OperationName
+//| render columnchart 
+
+
+let c_idr = DatabricksClusters 
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterId = extractjson("$.['cluster_id']", tostring(response.result))
+| where isnotempty( ClusterId);
+c_idr
+| order by TimeGenerated asc
+
+
+
+
+//find a specific job cluster
+let c_id = DatabricksClusters 
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterId = extractjson("$.['cluster_id']", tostring(rparams))
+| where isnotempty( ClusterId);
+let cid = DatabricksClusters 
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterId = extractjson("$.['clusterId']", tostring(rparams))
+| where isnotempty( ClusterId);
+let c_idr = DatabricksClusters 
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterId = extractjson("$.['cluster_id']", tostring(response.result))
+| where isnotempty( ClusterId);
+c_id | union cid, c_idr
+| order by TimeGenerated asc
+| extend ClusterCreator = tostring(parse_json(RequestParams).cluster_creator)
+//| where ClusterCreator != "JOB_LAUNCHER"
+| where ClusterId == "0825-162800-bath65"
+
+
+//There appears to be no start event when clusters are job cluster, just 
+create
+delete
+resize
+deleteResult
+createResult
+
+//some useful info in resize  about number workers and cause for resize (rparams : num_workers and cause)
+//some useful info in rparams: cluster_name in format job-{jobid}-run-{runid}

@@ -1,0 +1,30 @@
+//notebooks errors
+DatabricksNotebook 
+| extend response = parse_json(Response)
+| extend StatusCode = tostring(response.statusCode)
+| where StatusCode != "200"
+| extend ErrorMessage = response.errorMessage
+
+
+DatabricksNotebook 
+| extend response = parse_json(Response)
+| extend StatusCode = tostring(response.statusCode)
+| extend rparams = parse_json(RequestParams)
+| extend ClusterId = rparams.clusterId
+| extend User = parse_json(Identity).email
+| extend NotebookPath = rparams.path
+| extend Workspace = substring(reverse(split(reverse(_ResourceId),"/",0)),2,strlen(split(reverse(_ResourceId),"/",0))-4)
+| project TimeGenerated, Workspace, StatusCode, User, NotebookPath, ClusterId
+
+
+DatabricksNotebook 
+| extend response = parse_json(Response)
+| extend StatusCode = tostring(response.statusCode)
+| extend rparams = parse_json(RequestParams)
+| extend ClusterId = rparams.clusterId
+| extend User = parse_json(Identity).email
+| extend NotebookPath = tostring(rparams.path)
+| extend Workspace = substring(reverse(split(reverse(_ResourceId),"/",0)),2,strlen(split(reverse(_ResourceId),"/",0))-4)
+| project TimeGenerated, Workspace, StatusCode, User, NotebookPath, ClusterId
+| summarize LogCount = count(TimeGenerated) by NotebookPath
+| order by LogCount desc
