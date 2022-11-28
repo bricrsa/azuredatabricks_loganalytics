@@ -89,6 +89,8 @@ For the Cluster logs, there is [unique list of Actions](/loganalytics_queries/cl
 - delete
 - createResult
 
+Custom Tags are available from RequestParams.custom_tags as list of key-value pairs.
+
 For job clusters the following events exists (from ActionName):
 + create
 + delete
