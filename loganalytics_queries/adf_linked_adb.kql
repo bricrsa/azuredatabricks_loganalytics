@@ -40,7 +40,7 @@ let ADF_Activity= ADFActivityRun
     , iif(isempty(extractjson("$.['table']", tostring(parse_json(Input).baseParameters))), "",strcat("table: ", extractjson("$.['table']", tostring(parse_json(Input).baseParameters))))
     )
 | project ADFJobEnd = TimeGenerated, PipelineName, ActivityName, InputParam_chosen, RunId, NotebookPath, ExecutionDuration, RunPageURL, ADFRunStatus = Status;
-let pool_ids = DatabricksClusters
+let pool_ids =DatabricksClusters
 | where ActionName == "create"
 | extend rparams = parse_json(RequestParams)
 | extend response = parse_json(Response)
@@ -48,14 +48,15 @@ let pool_ids = DatabricksClusters
 | extend ClusterId = coalesce(extractjson("$.['cluster_id']", tostring(rparams))
                         ,extractjson("$.['clusterId']", tostring(rparams))
                         ,extractjson("$.['cluster_id']", tostring(response.result)))
-| extend ClusterName = coalesce(rparams.clusterName
-                                , rparams.cluster_name)
-| extend CustomTags = rparams.custom_tags, NumWorkers = rparams.num_workers
+| extend ClusterName = tostring(coalesce(rparams.clusterName
+                                , rparams.cluster_name))
+| extend CustomTags = tostring(rparams.custom_tags), NumWorkers = toint(rparams.num_workers)
 | extend CustomTagRunName = tostring(extractjson("$.['RunName']", tostring(rparams.custom_tags)))
-| extend InstancePoolID = tostring(rparams.instance_pool_id);
+| extend InstancePoolID = tostring(rparams.instance_pool_id)
+| summarize by ClusterId, ClusterName, CustomTags, NumWorkers, CustomTagRunName, InstancePoolID;
 let instPools =  datatable(InstancePoolID:string, PoolName:string
-            , NodeType:string, DBUsage:int, DBUCost:decimal, VMCost:decimal, MinIdleInstances:int, Currency:string)
-            ['0112-102712-own658-pool-9urlhql1', 'Pool0012', 'DS4 v2', 1.5, 1.00, 0.46, 0, 'GBP',
+            , NodeType:string, DBUsage:decimal, DBUCost:decimal, VMCost:decimal, MinIdleInstances:int, Currency:string)
+            ['0112-102712-own658-pool-9urlhql1', 'Pool0012', 'DS4 v2', 1.5, 0.259, 0.46, 0, 'GBP',
              '0812-131731-homie204-pool-2U1OYTum', 'Pool0812', 'D13 v2', 2, 0.50, 0.36, 0, 'GBP',
              '1207-171037-steer985-pool-4hkjz8hd', 'Pool1207', 'L16s', 4, 1.00, 1.24, 0, 'GBP'];
 let j_start = DatabricksJobs
@@ -74,6 +75,6 @@ ADF_Activity
 | extend JobDuration = toint(datetime_diff("second", EndTimeGen, StartTimeGen))
 | join kind=inner pool_ids on ClusterId
 | join kind=leftouter instPools on InstancePoolID
-| extend CostOfDBU = round(JobDuration*(NumWorkers+1)*DBUCost/3600.00,3), CostOfCompute = round((JobDuration+60)*(NumWorkers+1)*VMCost/3600.00,3)
+| extend CostOfDBU = round(JobDuration*(NumWorkers)*DBUsage*DBUCost/3600.00,3), CostOfCompute = round((JobDuration+60)*(NumWorkers+1)*VMCost/3600.00,3)
 | extend TotalClusterCost = CostOfCompute+CostOfDBU 
 | project ADFJobEnd, JobId, RunId, ClusterId, ClusterName, CustomTagRunName, DatabricksRunStatus = EndActionName, ADFRunStatus, InputParam_chosen, JobDuration, NumWorkers, InstancePoolID, PoolName, NodeType, TotalClusterCost, Currency

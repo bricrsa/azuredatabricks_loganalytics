@@ -53,7 +53,7 @@ The cost for DBU is relatively simple for PAYG use cases and has a relationship 
 
 The cost for Azure resources largely related to VM, Storage, Networking etc, with the largest of these typically being the VM costs. 
 
-You can use the Azure Pricing Calculator to get a rough guide on the cost of a particular cluster per hour. There are some variations that occur, such has how many disks get added to each node, but we will not consider that here.
+You can use the Azure Pricing Calculator to get a rough guide on the cost of a particular cluster per hour. There are some variations that occur, such has how many disks get added to each node, but we will not consider that here. To populate the below table, choose your Databricks workload type and region, the VM family and type and add the per hour compute cost, DBU for that compute and the DBU per hour price into the table.
 
 Using the Cluster logs and the create event, we can discover the pool id and number of workers for jobs clusters.
 
@@ -65,8 +65,16 @@ let instPools =  datatable(InstancePoolID:string, PoolName:string
              '0812-131731-homie204-pool-2U1OYTum', 'Pool0812', 'D13 v2', 2, 0.50, 0.36, 0, 'GBP',
              '1207-171037-steer985-pool-4hkjz8hd', 'Pool1207', 'L16s', 4, 1.00, 1.24, 0, 'GBP'];
 ```
+Note: Some assumptions are at play here
+  - Compute comes from pools
+  - Pools are only used for one kind of workload - All Purpose Compute, Jobs Compute, Jobs Compute with Photon etc. This is because the DBU cost for each kind of workload is different
+  - In the cost calculation we also assume that 
+    - actual number of nodes is number of workers + 1, 
+    - compute runs for at least 60 seconds longer than the actual job duration (this fails if you have to wait for a node to be provisioned to a pool, as it would likely be 200-400 seconds)
 
-If we had the Log Analytics (Diagnostic Settings) integration turned on when we created or modified the pool, we should be able to capture pool information via this [query](/loganalytics_queries/pools.kql).
+The Job cost calculation attempts to estimate the actual job cost, but does not include pool maintenance time. Review [pool best practices](https://learn.microsoft.com/en-us/azure/databricks/clusters/instance-pools/pool-best-practices), note however that if you set the pool idle instance auto termination to more than approx 5-10 minutes you are likely to increase actual execution cost. Test this out for yourself.
+
+If we had the Log Analytics (Diagnostic Settings) integration turned on when we created or modified the pool, we should be able to capture pool information via this [query](/loganalytics_queries/pools.kql). The pool creation/modification time also needs be within your Log Analytics retention period.
 
 By linking together cluster create information from the Clusters log, with Start and End information from the Jobs log, we can detect cluster duration and specification. An example query that generates a job cost can be found [here](/loganalytics_queries/job_costs.kql).
 
