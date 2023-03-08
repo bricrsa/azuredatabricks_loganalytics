@@ -22,6 +22,20 @@ DatabricksClusters
 | summarize ErrorCount =count(TimeGenerated) by Day = bin(TimeGenerated,1d), ADBWorkspaceName, ErrorShort
 | order by Day
 
+//attempt to classify errors, summarise by error and workspace
+DatabricksClusters
+| extend ErrorMessage = tostring(parse_json(Response).errorMessage)
+| where isnotempty(ErrorMessage)
+| extend ADBWorkspaceName = substring(
+                reverse(split(reverse(_ResourceId),"/",0)),2,strlen(split(reverse(_ResourceId),"/",0))-4)
+| extend ErrorShort = case(ErrorMessage contains "quota", "Core quota issue",
+                            ErrorMessage contains "unexpected state Pending", "Cluster unexpected state",
+                            ErrorMessage contains "Slow instance", "Pool issue",
+                            ErrorMessage contains "INTERNAL_ERROR: Could not launch cluster due to cloud provider failures. instance_id:", "Cloud provider failure",
+                            ErrorMessage contains "can be allocated from the pool before its max capacity of", "Pool capacity",
+                            ErrorMessage)
+| summarize ErrorCount =count(TimeGenerated) by ADBWorkspaceName, ErrorShort
+
 
 //count errors by hour, group by Day
 DatabricksClusters
