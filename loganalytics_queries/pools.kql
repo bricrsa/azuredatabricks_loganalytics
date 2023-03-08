@@ -20,3 +20,16 @@ let instPools =  datatable(InstancePoolID:string, PoolName:string
              '1207-171037-steer985-pool-4hkjz8hd', 'Pool1207', 'L16s', 4, 1.00, 1.24, 0, 'GBP'];
 instPools
 
+
+
+//check on all the in use pools
+DatabricksClusters
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend DriverInstancePoolId = coalesce(tostring(rparams.driver_instance_pool_id), tostring(rparams.instance_pool_id))
+| extend InstancePoolId = tostring(rparams.instance_pool_id)
+| extend DriverNode= tostring(coalesce(rparams.driver_node_type_id, rparams.node_type_id))
+| extend Node= tostring(rparams.node_type_id), ClusterCreator = tostring(rparams.cluster_creator)
+| extend SparkV = tostring(rparams.spark_version)
+| summarize by DriverInstancePoolId, InstancePoolId, DriverNode, Node, ClusterCreator, SparkV
+| order by DriverInstancePoolId

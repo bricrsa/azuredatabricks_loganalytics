@@ -115,3 +115,108 @@ DatabricksClusters
 | extend InstancePoolID = tostring(rparams.instance_pool_id)
 | summarize ClusterCount=count(ClusterId) by InstancePoolID
 
+
+
+let c_scaling = DatabricksClusters
+| where ActionName in("startResult","resizeResult", "deleteResult")
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend ClusterId = tostring(coalesce(extractjson("$.['cluster_id']", tostring(rparams))
+                        , extractjson("$.['clusterId']", tostring(rparams))
+                        , extractjson("$.['cluster_id']", tostring(response.result))))
+//| where ClusterId == "0301-152524-7ukmhis5"
+| extend ClusterName = tostring(coalesce(rparams.clusterName
+                                , rparams.cluster_name))
+| extend ClusterWorkers = coalesce(extractjson("$.['clusterWorkers']", tostring(rparams)), rparams.num_workers)
+| extend Event = case(ActionName =="startResult", "Start",
+                ActionName =="create", "Create",
+                ActionName =="resizeResult", "Resize",
+                ActionName =="deleteResult", "Stop", "Other")
+| extend ClusterType = case(ClusterName contains_cs "job-", "JobCluster", 
+                ClusterName =="" ,"SQLCluster", 
+                "AllPurposeCluster")
+| summarize by TimeGenerated, ClusterId, ClusterName, ClusterType, Event, ClusterWorkers;
+let c_create = DatabricksClusters
+| where ActionName == "create"
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend billinginfo = tostring(parse_xml(rparams.billing_info))
+| extend sql_endpoint_size = extract_json("$.sqlgateway_billing_info.endpoint_size", billinginfo)
+| extend DriverInstancePoolId = coalesce(tostring(rparams.driver_instance_pool_id), tostring(rparams.instance_pool_id))
+| extend InstancePoolId = tostring(rparams.instance_pool_id)
+| extend DriverNode= tostring(coalesce(rparams.driver_node_type_id, rparams.node_type_id))
+| extend Node= tostring(rparams.node_type_id)
+| extend SparkV = tostring(rparams.spark_version)
+| extend ClusterId = coalesce(extractjson("$.['cluster_id']", tostring(rparams))
+                        ,extractjson("$.['clusterId']", tostring(rparams))
+                        ,extractjson("$.['cluster_id']", tostring(response.result))
+                        , extractjson("$.sqlgateway_billing_info.endpoint_id", billinginfo))
+| extend ClusterName = tostring(coalesce(rparams.clusterName
+                                , rparams.cluster_name))
+| extend CustomTags = rparams.custom_tags
+| extend InstPoolId = rparams.instance_pool_id, ResizeCause = tostring(rparams.cause)
+| extend ClusterWorkers = coalesce(extractjson("$.['clusterWorkers']", tostring(rparams)), rparams.num_workers)
+| extend Event = case(ActionName =="startResult", "Start",
+                ActionName =="create", "Create",
+                ActionName =="resizeResult", "Resize",
+                ActionName =="deleteResult", "Stop", "Other")
+| extend ClusterType = case(ClusterName contains_cs "job-", "JobCluster", 
+                ClusterName =="" ,"SQLCluster", 
+                "AllPurposeCluster")
+| summarize by ClusterType, ClusterId, ClusterName, DriverNode, Node, ClusterWorkers, DriverInstancePoolId, InstancePoolId;
+c_scaling
+| join kind=leftouter c_create on ClusterId
+| order by TimeGenerated  asc         
+
+
+let c_scaling = DatabricksClusters
+| where ActionName in("create","startResult","resizeResult", "deleteResult")
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend ClusterId = tostring(coalesce(extractjson("$.['cluster_id']", tostring(rparams))
+                        , extractjson("$.['clusterId']", tostring(rparams))
+                        , extractjson("$.['cluster_id']", tostring(response.result))))
+| where ClusterId == "0301-152524-7ukmhis5"
+| extend ClusterName = tostring(coalesce(rparams.clusterName
+                                , rparams.cluster_name))
+| extend ClusterWorkers = coalesce(extractjson("$.['clusterWorkers']", tostring(rparams)), rparams.num_workers)
+| extend Event = case(ActionName =="startResult", "Start",
+                ActionName =="create", "Create",
+                ActionName =="resizeResult", "Resize",
+                ActionName =="deleteResult", "Stop", "Other")
+| extend ClusterType = case(ClusterName contains_cs "job-", "JobCluster", 
+                ClusterName =="" ,"SQLCluster", 
+                "AllPurposeCluster")
+                
+| summarize by TimeGenerated, ClusterId, ClusterName, ClusterType, Event, ClusterWorkers;
+let c_create = DatabricksClusters
+| where ActionName == "create"
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend billinginfo = tostring(parse_xml(rparams.billing_info))
+| extend sql_endpoint_size = extract_json("$.sqlgateway_billing_info.endpoint_size", billinginfo)
+| extend DriverInstancePoolId = coalesce(tostring(rparams.driver_instance_pool_id), tostring(rparams.instance_pool_id))
+| extend InstancePoolId = tostring(rparams.instance_pool_id)
+| extend DriverNode= tostring(coalesce(rparams.driver_node_type_id, rparams.node_type_id))
+| extend Node= tostring(rparams.node_type_id)
+| extend SparkV = tostring(rparams.spark_version)
+| extend ClusterId = coalesce(extractjson("$.['cluster_id']", tostring(rparams))
+                        ,extractjson("$.['clusterId']", tostring(rparams))
+                        ,extractjson("$.['cluster_id']", tostring(response.result))
+                        , extractjson("$.sqlgateway_billing_info.endpoint_id", billinginfo))
+| extend ClusterName = tostring(coalesce(rparams.clusterName
+                                , rparams.cluster_name))
+| extend CustomTags = rparams.custom_tags
+| extend InstPoolId = rparams.instance_pool_id, ResizeCause = tostring(rparams.cause)
+| extend ClusterWorkers = coalesce(extractjson("$.['clusterWorkers']", tostring(rparams)), rparams.num_workers)
+| extend Event = case(ActionName =="startResult", "Start",
+                ActionName =="create", "Create",
+                ActionName =="resizeResult", "Resize",
+                ActionName =="deleteResult", "Stop", "Other")
+| extend ClusterType = case(ClusterName contains_cs "job-", "JobCluster", 
+                ClusterName =="" ,"SQLCluster", 
+                "AllPurposeCluster")
+| summarize by ClusterType, ClusterId, ClusterName, DriverNode, Node, ClusterWorkers, DriverInstancePoolId, InstancePoolId;
+c_scaling
+| join kind=leftouter c_create on ClusterId
+| order by TimeGenerated  asc     

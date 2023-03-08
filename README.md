@@ -97,6 +97,13 @@ For the Cluster logs, there is [unique list of Actions](/loganalytics_queries/cl
 - delete
 - createResult
 
+For a list of all cluster events by cluster type see [here](/loganalytics_queries/types%20of%20cluster.kql)
+
+| Action Name | Jobs Cluster | All Purpose Cluster | SQL endpoint |
+| :----------: | :----------: | :----------: | :----------: |
+| start |  | X | X |
+| create | X |  |  |
+
 Custom Tags are available from RequestParams.custom_tags as list of key-value pairs.
 
 For job clusters the following events exists (from ActionName):
@@ -122,7 +129,8 @@ For **jobs clusters**, the provisioned resources or pool can be found in the cre
 - the instance_pool_id is part of the cluster create event
 - investigate cause of AUTORECOVERY events in [resize](/loganalytics_queries/cluster_resize_autorecovery.kql)
 
-For **interactive clusters**, the following events exists (from ActionName):
+For **interactive/all purpose 
+clusters**, the following events exists (from ActionName):
 - start
 - startResult
 - resizeResult

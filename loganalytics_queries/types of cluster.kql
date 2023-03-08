@@ -1,0 +1,64 @@
+//Look for specific cluster config
+DatabricksClusters
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend ClusterId = tostring(coalesce(extractjson("$.['cluster_id']", tostring(rparams))
+                        , extractjson("$.['clusterId']", tostring(rparams))
+                        , extractjson("$.['cluster_id']", tostring(response.result))))
+| extend ClusterCreator = tostring(rparams.cluster_creator)
+| extend ClusterType = case(ClusterCreator== "JOB_LAUNCHER", "JobCluster", 
+                ClusterCreator=="SQL_SERVICE" ,"SQLCluster", 
+                "AllPurposeCluster")
+
+
+//events by cluster type
+let c_type = DatabricksClusters
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend ClusterId = tostring(coalesce(extractjson("$.['cluster_id']", tostring(rparams))
+                        , extractjson("$.['clusterId']", tostring(rparams))
+                        , extractjson("$.['cluster_id']", tostring(response.result))))
+| extend ClusterCreator = tostring(rparams.cluster_creator)
+| where ActionName in ("start", "create") //not all the rows have ClusterCreator, so limit to those that have
+| extend ClusterType = case(ClusterCreator== "JOB_LAUNCHER", "JobCluster", 
+                ClusterCreator=="SQL_SERVICE" ,"SQLCluster", 
+                "AllPurposeCluster")
+| summarize by ClusterId, ClusterType;
+let c_events = DatabricksClusters
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend ClusterId = tostring(coalesce(extractjson("$.['cluster_id']", tostring(rparams))
+                        , extractjson("$.['clusterId']", tostring(rparams))
+                        , extractjson("$.['cluster_id']", tostring(response.result))))
+| summarize by ClusterId, ActionName;
+c_type
+| join kind=inner c_events on ClusterId
+| project ClusterId, ClusterType, ActionName
+| summarize EventCount = count(ActionName) by ClusterType, ActionName
+| order by ClusterType
+
+//validation
+let c_type = DatabricksClusters
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend ClusterId = tostring(coalesce(extractjson("$.['cluster_id']", tostring(rparams))
+                        , extractjson("$.['clusterId']", tostring(rparams))
+                        , extractjson("$.['cluster_id']", tostring(response.result))))
+| extend ClusterCreator = tostring(rparams.cluster_creator)
+| where ActionName in ("start", "create")
+| extend ClusterType = case(ClusterCreator== "JOB_LAUNCHER", "JobCluster", 
+                ClusterCreator=="SQL_SERVICE" ,"SQLCluster", 
+                "AllPurposeCluster")
+| summarize by ClusterId, ClusterType;
+let c_events = DatabricksClusters
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend ClusterId = tostring(coalesce(extractjson("$.['cluster_id']", tostring(rparams))
+                        , extractjson("$.['clusterId']", tostring(rparams))
+                        , extractjson("$.['cluster_id']", tostring(response.result))));
+c_type
+| join kind=inner c_events on ClusterId
+
+
+//Notes: jobs cluster have target_workers and (nodes or pools), link on cluster_id and pool_id
+//Notes: all purpose cluster have target_workers and cluster name, link on cluster_id and cluster name (which should relate to a hardware definition)
