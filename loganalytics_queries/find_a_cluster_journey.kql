@@ -3,6 +3,20 @@ DatabricksClusters
 | order by TimeGenerated desc
 | limit 20
 
+//all the events
+let Clusters = datatable(ClusterId:string)
+    ["0213-160023-ni8b2h6m"];
+DatabricksClusters 
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend StatusCode = response.statusCode
+| extend ClusterId = coalesce(extractjson("$.['cluster_id']", tostring(rparams))
+                        ,extractjson("$.['clusterId']", tostring(rparams))
+                        ,extractjson("$.['cluster_id']", tostring(response.result)))
+| extend NodeType = extractjson("$.['node_type_id']", tostring(rparams))
+| join kind=inner Clusters on ClusterId
+
+
 DatabricksClusters
 | where ActionName  == "startResult"
 | order by TimeGenerated desc

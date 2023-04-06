@@ -78,31 +78,38 @@ If we had the Log Analytics (Diagnostic Settings) integration turned on when we 
 
 By linking together cluster create information from the Clusters log, with Start and End information from the Jobs log, we can detect cluster duration and specification. An example query that generates a job cost can be found [here](/loganalytics_queries/job_costs.kql).
 
-
 ## Understanding the various logs
 
 Note that the details of time do not appear within each log row, rather the Time Generated is recorded. This is typically regarded as the actual time that the event occurred, rather than the Log Analytics injest time, as recorded [here](https://docs.microsoft.com/en-us/azure/azure-monitor/logs/log-standard-columns#timegenerated).
 
 ### **DatabricksClusters**
 
-For the Cluster logs, there is [unique list of Actions](/loganalytics_queries/clusters_list_of_actions.kql)
+For the Cluster logs, there is [unique list of Actions](/loganalytics_queries/clusters_list_of_actions.kql).
 
 *ActionName*
 - start
-- create
 - startResult
+- create
+- createResult
 - resize
-- deleteResult
 - resizeResult
 - delete
-- createResult
+- deleteResult
 
-For a list of all cluster events by cluster type see [here](/loganalytics_queries/types%20of%20cluster.kql)
 
-| Action Name | Jobs Cluster | All Purpose Cluster | SQL endpoint |
+For a list of all cluster events by cluster type see [here](/loganalytics_queries/types%20of%20cluster.kql).
+
+| Action Name | All Purpose Cluster | Jobs Cluster | SQL endpoint |
 | :----------: | :----------: | :----------: | :----------: |
-| start |  | X | X |
-| create | X |  |  |
+| create |  | X | X | 
+| createResult |  | X | X | 
+| delete | X | X | X | 
+| deleteResult | X | X | X | 
+| resizeResult | X | X | X | 
+| restart | X |  |  | 
+| restartResult | X |  |  | 
+| start | X |  |  | 
+| startResult | X |  |  | 
 
 Custom Tags are available from RequestParams.custom_tags as list of key-value pairs.
 
@@ -136,9 +143,10 @@ clusters**, the following events exists (from ActionName):
 - resizeResult
 - deleteResult 
 
-For interactive clusters,
+For **interactive/all purpose,
 - startResult, resizeResult, deleteResult include cluster name via
 - start events do not include cluster name
+- edit event shows node type for cluster (rare event so you may need to manually add this to some queries to get node info)
 
 ### **DatabricksAccounts**
 
