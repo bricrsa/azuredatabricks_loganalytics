@@ -13,6 +13,7 @@ For further useful logging references, see [this list of useful reading](/useful
 - [Introduction - Insights into logs](#introduction---insights-into-logs)
 - [Specific scenario queries](#specific-queries-to-hightlight-key-information)
 - [Understanding Cluster costs](#understanding-cluster-costs-from-cluster-information)
+- [Understanding overall compute costs](#understanding-overall-compute-costs)
 - [Understanding the various logs](#understanding-the-various-logs)
   - [DatabricksClusters](#databricksclusters)
   - [DatabricksAccounts](#databricksaccounts)
