@@ -78,6 +78,14 @@ If we had the Log Analytics (Diagnostic Settings) integration turned on when we 
 
 By linking together cluster create information from the Clusters log, with Start and End information from the Jobs log, we can detect cluster duration and specification. An example query that generates a job cost can be found [here](/loganalytics_queries/job_costs.kql).
 
+## Understanding overall compute costs
+
+A common question is whether it is possible to save money by utilising an Azure Reservation (RI) for the VMs used in the clusters. Unless the compute is running for more than 50% of each day for a year, then this is generally not a useful option. You can estimate how many nodes and of what time are running by using the same telemetry as discussed above.
+
+Example queries for counting the nodes and creating a chart are [here - count nodes](/loganalytics_queries/count_nodes_up_time_series.kql) and [here - last day only](/loganalytics_queries/count_nodes_time_series_lastday.kql). These are sensitive to the resolution of the time series, so ensure you do some validation to understand the detail.
+
+Example of the output chart for  [all data](/media/Running%20Nodes.png) and [single day](/media/AllNodesDay.png)
+
 ## Understanding the various logs
 
 Note that the details of time do not appear within each log row, rather the Time Generated is recorded. This is typically regarded as the actual time that the event occurred, rather than the Log Analytics injest time, as recorded [here](https://docs.microsoft.com/en-us/azure/azure-monitor/logs/log-standard-columns#timegenerated).

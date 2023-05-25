@@ -1,0 +1,71 @@
+let toUnixTime = (dt:datetime) 
+{ 
+    (dt - datetime(1970-01-01)) / 1s 
+};
+let c_scaling = DatabricksClusters
+| where TimeGenerated > ago(1d)
+| where ActionName in("create","startResult","resizeResult", "deleteResult")
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend ClusterId = tostring(coalesce(extractjson("$.['cluster_id']", tostring(rparams))
+                        , extractjson("$.['clusterId']", tostring(rparams))
+                        , extractjson("$.['cluster_id']", tostring(response.result))))
+//| where ClusterId == "0306-160840-wo0w8mrc"
+| extend ClusterName = tostring(coalesce(rparams.clusterName
+                                , rparams.cluster_name))
+| extend ClusterWorkers = coalesce(extractjson("$.['clusterWorkers']", tostring(rparams)), rparams.num_workers)
+| extend Event = case(ActionName =="startResult", "Start",
+                ActionName =="create", "Create",
+                ActionName =="resizeResult", "Resize",
+                ActionName =="deleteResult", "Stop", "Other")
+| summarize by TimeGenerated, ClusterId, ClusterName, Event, ClusterWorkers;
+let c_create = DatabricksClusters
+| where TimeGenerated > ago(1d)
+| where ActionName in ("start", "create") //not all the rows have ClusterCreator, so limit to those that have
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend ClusterCreator = tostring(rparams.cluster_creator)
+| extend billinginfo = tostring(parse_xml(rparams.billing_info))
+| extend sql_endpoint_size = extract_json("$.sqlgateway_billing_info.endpoint_size", billinginfo)
+| extend DriverInstancePoolId = coalesce(tostring(rparams.driver_instance_pool_id), tostring(rparams.instance_pool_id))
+| extend InstancePoolId = tostring(rparams.instance_pool_id)
+| extend DriverNode= tostring(coalesce(rparams.driver_node_type_id, rparams.node_type_id))
+| extend Node= tostring(rparams.node_type_id)
+| extend SparkV = tostring(rparams.spark_version)
+| extend ClusterId = coalesce(extractjson("$.['cluster_id']", tostring(rparams))
+                        ,extractjson("$.['clusterId']", tostring(rparams))
+                        ,extractjson("$.['cluster_id']", tostring(response.result))
+                        , extractjson("$.sqlgateway_billing_info.endpoint_id", billinginfo))
+| extend ClusterName = tostring(coalesce(rparams.clusterName
+                                , rparams.cluster_name))
+| extend ClusterWorkers = coalesce(extractjson("$.['clusterWorkers']", tostring(rparams)), rparams.num_workers)
+| extend Event = case(ActionName =="startResult", "Start",
+                ActionName =="create", "Create",
+                ActionName =="resizeResult", "Resize",
+                ActionName =="deleteResult", "Stop", "Other")
+| extend ClusterType = case(ClusterCreator== "JOB_LAUNCHER", "JobCluster", 
+                ClusterCreator=="SQL_SERVICE" ,"SQLCluster", 
+                "AllPurposeCluster")
+| summarize by ClusterType, ClusterId, ClusterName, DriverNode, Node, ClusterWorkers, DriverInstancePoolId, InstancePoolId;
+let instPools =  datatable(InstancePoolId:string, PoolName:string
+            , NodeType:string, DBUsage:decimal, DBUCost:decimal
+            , VMCost:decimal, IdleTimeMinutes: int,MinIdleInstances:int, Currency:string, Region:string)
+['1207-171037-steer985-pool-4hkjz8hd', 'InLifeML_DBR10Pool', 'Standard_DS4_v2', 1.5, 0.37, 0.44,10,0,'GBP', 'North Europe',
+'0308-163924-mud46-pool-kc3m74j5', 'Driver_onDemand_NLD', 'Standard_DS4_v2', 1.5, 0.37, 0.44,5,0,'GBP', 'North Europe',
+'0303-125133-satyr33-pool-8j1bxnkd','Driver_onDemand_Ranjan', 'Standard_DS4_v2', 1.5, 0.37, 0.44,5,0,'GBP', 'North Europe',
+'0302-142028-spade7-pool-d20peshd', 'Driver_onDemand', 'Standard_DS4_v2', 1.5, 0.37, 0.44,10,0,'GBP', 'North Europe',
+'0302-141419-hulks6-pool-pf5jhodt', 'Spot_Instances', 'Standard_DS4_v2', 1.5, 0.37, 0.44,10,0,'GBP', 'North Europe',
+'0112-102712-own658-pool-9urlhql1', 'prod_pool_spark3_LTS9', 'Standard_DS4_v2', 1.5, 0.37, 0.44,10,0,'GBP', 'North Europe',
+'0303-124821-suet31-pool-xmzam1td', 'Spot_Instances_Ranjan', 'Standard_DS4_v2', 1.5, 0.37, 0.44,5,0,'GBP', 'North Europe',
+'0812-131731-homie204-pool-2U1OYTum', 'prod_pool','Standard_DS4_v2', 1.5, 0.37, 0.44,10,0,'GBP', 'North Europe'];
+let vm_up = c_scaling
+| join kind=leftouter c_create on ClusterId
+| project TimeGenerated = TimeGenerated, Event, ClusterId, ClusterType, DriverInstancePoolId, InstancePoolId, DriverNode, Node, ClusterWorkers = toint(ClusterWorkers)
+| order by ClusterId, TimeGenerated asc //need this for the windowing function
+| extend TimeStart = TimeGenerated
+| extend TimeEnd =  iif(prev(ClusterId) == ClusterId and ClusterWorkers !=0 , next(TimeGenerated), TimeGenerated);
+let min_t = toscalar(vm_up | summarize min(TimeStart));
+let max_t = toscalar(vm_up | summarize max(TimeEnd));
+vm_up
+| make-series NodesRunning=sum(ClusterWorkers) default=0 on TimeStart from min_t to max_t step 1m 
+| render timechart
