@@ -14,10 +14,12 @@ For further useful logging references, see [this list of useful reading](/useful
 - [Specific scenario queries](#specific-queries-to-hightlight-key-information)
 - [Understanding Cluster costs](#understanding-cluster-costs-from-cluster-information)
 - [Understanding overall compute costs](#understanding-overall-compute-costs)
+- [Understanding SQL Endpoint Usage](#understanding-sql-endpoint-usage)
 - [Understanding the various logs](#understanding-the-various-logs)
   - [DatabricksClusters](#databricksclusters)
   - [DatabricksAccounts](#databricksaccounts)
   - [DatabricksJobs](#databricksjobs)
+  - [DatabricksSQL](#sql-endpoint-logs)
 
 
 
@@ -86,173 +88,51 @@ A common question is whether it is possible to save money by utilising an Azure 
 Example queries for counting the nodes and creating a chart are [here - count nodes](/loganalytics_queries/count_nodes_up_time_series.kql) and [here - last day only](/loganalytics_queries/count_nodes_time_series_lastday.kql). These are sensitive to the resolution of the time series, so ensure you do some validation to understand the detail.
 
 Example of the output chart for  [all data](/media/Running%20Nodes.png) and [single day](/media/AllNodesDay.png)
+![compute costs](/media/Running%20Nodes.png)
 
-## Understanding the various logs
+## Understanding SQL Endpoint Usage
 
-Note that the details of time do not appear within each log row, rather the Time Generated is recorded. This is typically regarded as the actual time that the event occurred, rather than the Log Analytics injest time, as recorded [here](https://docs.microsoft.com/en-us/azure/azure-monitor/logs/log-standard-columns#timegenerated).
-
-### **DatabricksClusters**
-
-For the Cluster logs, there is [unique list of Actions](/loganalytics_queries/clusters_list_of_actions.kql).
-
-*ActionName*
-- start
-- startResult
-- create
-- createResult
-- resize
-- resizeResult
-- delete
-- deleteResult
-
-
-For a list of all cluster events by cluster type see [here](/loganalytics_queries/types%20of%20cluster.kql).
-
-| Action Name | All Purpose Cluster | Jobs Cluster | SQL endpoint |
-| :----------: | :----------: | :----------: | :----------: |
-| create |  | X | X | 
-| createResult |  | X | X | 
-| delete | X | X | X | 
-| deleteResult | X | X | X | 
-| resizeResult | X | X | X | 
-| restart | X |  |  | 
-| restartResult | X |  |  | 
-| start | X |  |  | 
-| startResult | X |  |  | 
-
-Custom Tags are available from RequestParams.custom_tags as list of key-value pairs.
-
-For job clusters the following events exists (from ActionName):
-+ create
-+ delete
-+ resize
-+ deleteResult
-+ createResult
-
-For job clusters:
-- *create* includes the cluster name via RequestParams.cluster_name
-- *createResult*, *deleteResult* and *resizeResult* includes the cluster name via RequestParams.clusterName
-- *delete* events do not include cluster name
-
-For **jobs clusters**, the provisioned resources or pool can be found in the create event
-- in RequestParams
-    use node_type_id and num_workers for SQL Analytics
-    for pooled users = use instance_pool_id and driver_instance_pool_id and num_workers
-- there is also a resize event that occurs
-    with a target_workers inside autoscale
-    or just num_workers
-    both have a cause
-- the instance_pool_id is part of the cluster create event
-- investigate cause of AUTORECOVERY events in [resize](/loganalytics_queries/cluster_resize_autorecovery.kql)
-
-For **interactive/all purpose 
-clusters**, the following events exists (from ActionName):
-- start
-- startResult
-- resizeResult
-- deleteResult 
-
-For **interactive/all purpose,
-- startResult, resizeResult, deleteResult include cluster name via
-- start events do not include cluster name
-- edit event shows node type for cluster (rare event so you may need to manually add this to some queries to get node info)
-
-### **DatabricksAccounts**
-
-From Databricks accounts, we can see the UserAgent that logged in 
-
-### **DatabricksJobs**
-
-From DatabricksJobs
-
-for event *runStart*
--    from RequestParams we can get 
-```
-    - jobCluster, clusterId, idInJob, jobClusterType, jobId
-    - jobTaskType, jobTerminalState, jobTriggerType, multitaskParentRunId
-    - orgId, runId, taskDependencies, taskKey
-```
-
-Event details:
-
-*with ClusterId*
-- runStart    RunId = rparams.runId, JobId = rparams.jobId, ClusterID = rparams.clusterId
-- runSucceeded same as runStart
-- runFailed same as runStart
-
-*with RunID*
-- getRunOutput    rparams.run_id
-- submitRun   response.result.run_id
-- runTriggered rparams.runId, rparams.jobId
-- cancel  rparams.run_id
-- runNow rparams.job_id, response.result.run_id
-- deleteRun rparams.run_id
-
-*with just JobId*
-- update  rparams.job_id
-
-*with Nothing*
-- changeJobAcl
-
-## SQL Endpoint Logs
-
-From Databricks SQL
-https://learn.microsoft.com/en-us/azure/databricks/administration-guide/account-settings/audit-logs#dbsql for high level reference
+It is possible to understand query activity by user, by examing DatabricksSQL logs.
 
 Caution: SessionId has a different format from session_id
-SessionId example: eb07003524eb98e807a770b3b4c49f52f31848bd1706b1885381aaced84dbc67
-session_id example 01ee40f0-61a8-1961-bf8d-db827a1aef72
+SessionId example: *eb07003524eb98e807a770b3b4c49f52f31848bd1706b1885381aaced84dbc67*
 
-*Action Names*
- - cancelQueryExecution
- - createQueryDraft
- - downloadQueryResult
- - executeAdhocQuery
- - executeFastQuery
- - executeSavedQuery
- - executeWidgetQuery
- - getQueriesByLookupKeys
- - getQuery
- - listQueries
- - startEndpoint
- - updateQuery
- - updateQueryDraft
+session_id example *01ee40f0-61a8-1961-bf8d-db827a1aef72*
 
-Log Details for ActionName
-*with session id*
-- getQueriesByLookupKeys
-- listQueries
-- downloadQueryResult
+Unfortunately, it does not appear possible to directly link executed queries with specific endpoints, but it is possible to derive general activity against specific endpoint ids.
 
-*with query id*
-- getQueriesByLookupKeys
-- listQueries
-- getQuery
+If we need to know the cluster details for an endpoint id so that we can find out compute details from DatabricksCluster, this only exists on rows that have short form session_id. 
+It would appear that query exectutions (xecuteAdhocQuery,	executeFastQuery) are sometimes accompanied by a listQueries event, so it may be possible to highlight endpoint activity by using linked session_ids.
 
-*with user id*
-- getQueriesByLookupKeys
-- listQueries
-
-*with endpoint id*
-- listQueries
-
-Many rows have the long form SessionId.
-Including cancelQueryExecution,	createQuery,	createQueryDraft,	deleteQueryDraft,	downloadQueryResult,	executeAdhocQuery,	executeFastQuery,	executeSavedQuery,	executeWidgetQuery,	getQuery,	moveQueryToTrash,	requestPermissions,	updateQuery,	updateQueryDraft
-
-If we need to know the endpoint id so that we can find out compute details from DatabricksCluster, this only exists on rows that have short form session_id. 
-It would appear that query exectutions (xecuteAdhocQuery,	executeFastQuery) are typically accompanied by a listQueries event, so assuming that it is possible to highlight endpoint activity by using linked session_ids.
-
-Queries
+Example Queries
 
 [Queries executed - not linked to endpoint](/loganalytics_queries/sql_queries_executed.kql)
+
 [Activity - linked to endpoints](/loganalytics_queries/sql_activity_by_endpoint.kql)
+[To try and understand a minumum idle time](/loganalytics_queries/sql_time_between_queries_by_endpoint.kql)
+![general activity by endpoint](/media/sql_endpoint_activity.png)
 Activity times - attempt to measure time since last query - [to give idle time](/loganalytics_queries/sql_time_between_queries_by_endpoint.kql)
 
-### Areas for investigation
+### *Areas for investigation*
 - why don't the long form session ids link to anything?
 - which activities actually highlight a run query (currently assuming ('executeAdhocQuery',	'executeFastQuery',	'executeSavedQuery') )
 - how is query duration measured
 - what does the datasource_id mean
+
+
+## Understanding the various logs
+
+Note that the details of time do not appear within each log row, rather the Time Generated is recorded. This is typically regarded as the actual time that the event occurred, rather than the Log Analytics ingest time, as recorded [here](https://docs.microsoft.com/en-us/azure/azure-monitor/logs/log-standard-columns#timegenerated).
+
+### [DatabricksClusters](/understanding_logs.md#databricksclusters)
+
+### [DatabricksAccounts](/understanding_logs.md#databricksaccounts)
+
+### [DatabricksJobs](/understanding_logs.md#databricksjobs)
+
+### [SQL Endpoint Logs](/understanding_logs.md#sql-endpoint-logs)
+
+
 
 
 *[back to Contents](/README.md#contents)*
