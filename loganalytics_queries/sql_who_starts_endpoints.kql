@@ -1,0 +1,59 @@
+//who starts endpoints
+//note multiple concurrent cluster starts per endpoint - needs validation
+let sql_starter = DatabricksSQL
+| where ActionName == "startEndpoint"
+| extend email = tostring(parse_json(Identity).email)
+| extend endpoint_id = tostring(parse_json(RequestParams).id)
+| project TimeGenerated, ActionName, endpoint_id, email;
+let c_startstops = DatabricksClusters
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend ClusterId = tostring(coalesce(extractjson("$.['cluster_id']", tostring(rparams))
+                        , extractjson("$.['clusterId']", tostring(rparams))
+                        , extractjson("$.['cluster_id']", tostring(response.result))))
+| where tostring(rparams.cluster_creator)=="SQL_SERVICE" 
+| where ActionName in ("start", "create")
+| extend SQLEndPoint_name = tostring(parse_json(tostring(parse_json(RequestParams).custom_tags)).SQLEndPoint) //custom tag
+| extend SQL_Serverless = tostring(parse_json(tostring(parse_json(RequestParams).custom_tags)).SQL_Serverless)//custom tag
+| extend EndpointName = coalesce(SQLEndPoint_name,SQL_Serverless) //requires custom tags
+| extend endpoint_id = tostring(parse_json(tostring(parse_json(tostring(parse_json(RequestParams).billing_info)).sqlgateway_billing_info)).endpoint_id)
+| extend max_node_count = tostring(parse_json(tostring(parse_json(tostring(parse_json(RequestParams).billing_info)).sqlgateway_billing_info)).max_node_count)
+| extend endpoint_size = tostring(parse_json(tostring(parse_json(tostring(parse_json(RequestParams).billing_info)).sqlgateway_billing_info)).endpoint_size)
+| extend autotermination_minutes = tostring(parse_json(RequestParams).autotermination_minutes)
+| extend enable_serverless_compute = tostring(parse_json(RequestParams).enable_serverless_compute)
+| summarize by ClusterId, EndpointName, endpoint_id, enable_serverless_compute;
+sql_starter
+| join c_startstops on endpoint_id
+| project TimeGenerated, EndpointName, endpoint_id, email, ClusterId, Serverless = enable_serverless_compute
+
+
+//who starts endpoints
+//note fixed time range join
+let sql_starter = DatabricksSQL
+| where ActionName == "startEndpoint"
+| extend email = tostring(parse_json(Identity).email)
+| extend endpoint_id = tostring(parse_json(RequestParams).id)
+| project EndpointStart=TimeGenerated, ActionName, endpoint_id, email;
+let c_starts = DatabricksClusters
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend ClusterId = tostring(coalesce(extractjson("$.['cluster_id']", tostring(rparams))
+                        , extractjson("$.['clusterId']", tostring(rparams))
+                        , extractjson("$.['cluster_id']", tostring(response.result))))
+| where tostring(rparams.cluster_creator)=="SQL_SERVICE" 
+| where ActionName in ("start", "create")
+| extend SQLEndPoint_name = tostring(parse_json(tostring(parse_json(RequestParams).custom_tags)).SQLEndPoint) //custom tag
+| extend SQL_Serverless = tostring(parse_json(tostring(parse_json(RequestParams).custom_tags)).SQL_Serverless)//custom tag
+| extend EndpointName = coalesce(SQLEndPoint_name,SQL_Serverless) //requires custom tags
+| extend endpoint_id = tostring(parse_json(tostring(parse_json(tostring(parse_json(RequestParams).billing_info)).sqlgateway_billing_info)).endpoint_id)
+| extend max_node_count = tostring(parse_json(tostring(parse_json(tostring(parse_json(RequestParams).billing_info)).sqlgateway_billing_info)).max_node_count)
+| extend endpoint_size = tostring(parse_json(tostring(parse_json(tostring(parse_json(RequestParams).billing_info)).sqlgateway_billing_info)).endpoint_size)
+| extend autotermination_minutes = tostring(parse_json(RequestParams).autotermination_minutes)
+| extend enable_serverless_compute = tostring(parse_json(RequestParams).enable_serverless_compute)
+| summarize by ClusterStart= TimeGenerated, ClusterId, EndpointName, endpoint_id, endpoint_size, enable_serverless_compute;
+sql_starter
+| join c_starts on endpoint_id
+| where (ClusterStart - EndpointStart) between (0min .. 1min)
+| project EndpointStart, EndpointName, endpoint_id, email, ClusterId, endpoint_size, Serverless = enable_serverless_compute
+| summarize ClusterCount= count(ClusterId)  by EndpointStart, endpoint_id
+| render columnchart 

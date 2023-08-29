@@ -1,0 +1,170 @@
+//validation
+let c_type = DatabricksClusters
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend ClusterId = tostring(coalesce(extractjson("$.['cluster_id']", tostring(rparams))
+                        , extractjson("$.['clusterId']", tostring(rparams))
+                        , extractjson("$.['cluster_id']", tostring(response.result))))
+| extend ClusterCreator = tostring(rparams.cluster_creator)
+| where ActionName in ("start", "create")
+| extend ClusterType = case(ClusterCreator== "JOB_LAUNCHER", "JobCluster", 
+                ClusterCreator=="SQL_SERVICE" ,"SQLCluster", 
+                "AllPurposeCluster")
+| summarize by ClusterId, ClusterType;
+let c_events = DatabricksClusters
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend ClusterId = tostring(coalesce(extractjson("$.['cluster_id']", tostring(rparams))
+                        , extractjson("$.['clusterId']", tostring(rparams))
+                        , extractjson("$.['cluster_id']", tostring(response.result))));
+c_type
+
+
+
+
+//events by cluster type
+let c_type = DatabricksClusters
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend ClusterId = tostring(coalesce(extractjson("$.['cluster_id']", tostring(rparams))
+                        , extractjson("$.['clusterId']", tostring(rparams))
+                        , extractjson("$.['cluster_id']", tostring(response.result))))
+| extend ClusterCreator = tostring(rparams.cluster_creator)
+| where ActionName in ("start", "create") //not all the rows have ClusterCreator, so limit to those that have
+| extend ClusterType = case(ClusterCreator== "JOB_LAUNCHER", "JobCluster", 
+                ClusterCreator=="SQL_SERVICE" ,"SQLCluster", 
+                "AllPurposeCluster")
+| summarize by ClusterId, ClusterType;
+let c_events = DatabricksClusters
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend ClusterId = tostring(coalesce(extractjson("$.['cluster_id']", tostring(rparams))
+                        , extractjson("$.['clusterId']", tostring(rparams))
+                        , extractjson("$.['cluster_id']", tostring(response.result))))
+| summarize by ClusterId, ActionName;
+c_type
+| join kind=inner c_events on ClusterId
+| project ClusterId, ClusterType, ActionName
+| summarize EventCount = count(ActionName) by ClusterType, ActionName
+| order by ClusterType
+
+//validation
+let c_type = DatabricksClusters
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend ClusterId = tostring(coalesce(extractjson("$.['cluster_id']", tostring(rparams))
+                        , extractjson("$.['clusterId']", tostring(rparams))
+                        , extractjson("$.['cluster_id']", tostring(response.result))))
+| extend ClusterCreator = tostring(rparams.cluster_creator)
+| where ActionName in ("start", "create")
+| extend ClusterType = case(ClusterCreator== "JOB_LAUNCHER", "JobCluster", 
+                ClusterCreator=="SQL_SERVICE" ,"SQLCluster", 
+                "AllPurposeCluster")
+| summarize by ClusterId, ClusterType;
+let c_events = DatabricksClusters
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend ClusterId = tostring(coalesce(extractjson("$.['cluster_id']", tostring(rparams))
+                        , extractjson("$.['clusterId']", tostring(rparams))
+                        , extractjson("$.['cluster_id']", tostring(response.result))));
+c_type
+| join kind=inner c_events on ClusterId
+
+
+DatabricksSQL
+| extend rparams = parse_json(RequestParams)
+| project TimeGenerated, ActionName, rparams, LogId
+
+DatabricksSQL
+| extend response = parse_json(Response)
+| extend StatusCode = extractjson("$.['statusCode']", tostring(response))
+| summarize LogCount = count(LogId) by RunDate = bin(TimeGenerated,1d), ActionName, Category, StatusCode
+
+
+
+// sql actions
+// 
+DatabricksSQL
+| extend response = parse_json(Response)
+| extend StatusCode = extractjson("$.['statusCode']", tostring(response))
+| summarize LogCount = count(LogId) by RunDateTime = bin(TimeGenerated,10m), ActionName, Category, StatusCode
+| order by RunDateTime asc
+
+
+
+// sql actions
+// 
+DatabricksSQL
+| extend response = parse_json(Response)
+| extend StatusCode = extractjson("$.['statusCode']", tostring(response))
+| summarize LogCount = count(LogId) by RunDateTime = bin(TimeGenerated,10m), Category, StatusCode
+| order by RunDateTime asc
+
+
+// sql actions
+// chart
+DatabricksSQL
+| extend response = parse_json(Response)
+| where ActionName != 'listQueries'
+| extend StatusCode = extractjson("$.['statusCode']", tostring(response))
+| summarize LogCount = count(LogId) by RunDateTime = bin(TimeGenerated,10m), Category, StatusCode
+| order by RunDateTime asc
+| render timechart 
+
+
+// sql actions
+// chart
+DatabricksSQL
+| extend response = parse_json(Response)
+| where ActionName != 'listQueries'
+| extend StatusCode = extractjson("$.['statusCode']", tostring(response))
+| summarize LogCount = count(LogId) by RunDateTime = bin(TimeGenerated,10m), ActionName
+| order by RunDateTime asc
+| render timechart 
+
+
+
+
+// sql actions
+// detail user
+DatabricksSQL
+| where TimeGenerated between(datetime("13 Aug 2023") .. datetime("19 Aug 2023"))
+| extend response = parse_json(Response)
+| extend identity = parse_json(Identity)
+| extend email = tostring(identity.email)
+| where ActionName != 'listQueries'
+| extend StatusCode = extractjson("$.['statusCode']", tostring(response))
+| summarize LogCount = count(LogId) by RunDateTime = bin(TimeGenerated,1m), email
+| order by RunDateTime asc
+| extend timeDiffInMinutes = datetime_diff('Minute', RunDateTime, prev(RunDateTime, 1))
+
+
+
+// sql actions
+// detail user
+DatabricksSQL
+| extend response = parse_json(Response)
+| extend identity = parse_json(Identity)
+| extend email = tostring(identity.email)
+| where ActionName != 'listQueries'
+| extend StatusCode = extractjson("$.['statusCode']", tostring(response))
+| extend RunDate = bin(TimeGenerated,1d), RunDateTime = bin(TimeGenerated,1m)
+| summarize LogCount = count(LogId) by RunDate, RunDateTime, email
+| order by RunDateTime asc
+| extend timeDiffInMinutes = datetime_diff('Minute'
+                                            , RunDateTime
+                                            , case(
+                                                bin(prev(RunDateTime,1),1d)==RunDate
+                                                ,prev(RunDateTime,1)
+                                                ,RunDateTime))
+| summarize max(timeDiffInMinutes) by RunDate
+
+
+
+
+DatabricksSQL
+| extend response = parse_json(Response)
+| where ActionName != 'listQueries'
+
+
+

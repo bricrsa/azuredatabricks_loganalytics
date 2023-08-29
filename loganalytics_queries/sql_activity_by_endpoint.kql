@@ -1,0 +1,82 @@
+//create a chart that shows the number of queries running on a SQL endpoint over time
+//although we can only show activity as queries do not have an appropriate session id to link to endpoints
+//generate a list of related endpoint_id and session_id
+let sql_endp_sess = DatabricksSQL
+| where ActionName == 'listQueries' //only finding endpoint in listQueries action
+| extend response = parse_json(Response)
+| extend rparams = replace_strings(tostring(parse_json(RequestParams)),dynamic(['\\','[',']']),dynamic(['','','']))
+| extend ResponseResult = tostring(parse_xml(response.result))
+| extend session_id = replace_strings(
+                        coalesce(SessionId
+                            ,extract('"session_id":(\"[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\")', 1, ResponseResult)
+                            ,extract('"session_ids":(\"[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\")', 1, rparams)
+                            ,extract('query_execution_session:([0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12})', 1, rparams) )
+                        , dynamic(['"']),dynamic(['']))
+| extend endpoint_id =  replace_strings(extract('"endpoint_ids":(\"[0-9a-fA-F]{16}\")', 1, rparams), dynamic(['"']),dynamic(['']))
+| extend email = tostring(parse_json(Identity).email)
+| where isnotempty(endpoint_id)
+| summarize by endpoint_id,session_id,email;
+//generate a list of all activity that has a session_id
+let sql_sess = DatabricksSQL
+| extend response = parse_json(Response)
+| extend rparams = replace_strings(tostring(parse_json(RequestParams)),dynamic(['\\','[',']']),dynamic(['','','']))
+| extend StatusCode = extractjson("$.['statusCode']", tostring(response))
+| extend ResponseResult = tostring(parse_xml(response.result))
+| extend session_id = replace_strings(
+                        coalesce(SessionId
+                            ,extract('"session_id":(\"[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\")', 1, ResponseResult)
+                            ,extract('"session_ids":(\"[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\")', 1, rparams)
+                            ,extract('query_execution_session:([0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12})', 1, rparams) )
+                        , dynamic(['"']),dynamic(['']))
+| extend query_id =  replace_strings(coalesce(extract('"query_id":(\"[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\")', 1, ResponseResult)
+                            ,extract('"queryId":(\"[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\")', 1, rparams)), dynamic(['"']),dynamic(['']))
+| extend user_id =  extract('"user_id":([0-9]{16})', 1, ResponseResult)
+| extend datasource_id =  replace_strings(extract('"dataSourceId":(\"[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\")', 1, rparams), dynamic(['"']),dynamic(['']))
+| extend endpoint_id =  replace_strings(extract('"endpoint_ids":(\"[0-9a-fA-F]{16}\")', 1, rparams), dynamic(['"']),dynamic(['']))
+| where isnotempty(session_id)
+| project StatusCode, session_id, sess_ActionName= ActionName, SessionDTG = TimeGenerated ;
+//generate a list of all clusters that have a endpoint id - NOTE requires custom tags
+let c_startstops = DatabricksClusters
+| extend rparams = parse_json(RequestParams)
+| extend response = parse_json(Response)
+| extend ClusterId = tostring(coalesce(extractjson("$.['cluster_id']", tostring(rparams))
+                        , extractjson("$.['clusterId']", tostring(rparams))
+                        , extractjson("$.['cluster_id']", tostring(response.result))))
+| where tostring(rparams.cluster_creator)=="SQL_SERVICE" 
+| where ActionName in ("start", "create")
+| extend SQLEndPoint_name = tostring(parse_json(tostring(parse_json(RequestParams).custom_tags)).SQLEndPoint) //custom tag
+| extend SQL_Serverless = tostring(parse_json(tostring(parse_json(RequestParams).custom_tags)).SQL_Serverless)//custom tag
+| extend EndpointName = coalesce(SQLEndPoint_name,SQL_Serverless) //requires custom tags
+| extend endpoint_id = tostring(parse_json(tostring(parse_json(tostring(parse_json(RequestParams).billing_info)).sqlgateway_billing_info)).endpoint_id)
+| extend max_node_count = tostring(parse_json(tostring(parse_json(tostring(parse_json(RequestParams).billing_info)).sqlgateway_billing_info)).max_node_count)
+| extend endpoint_size = tostring(parse_json(tostring(parse_json(tostring(parse_json(RequestParams).billing_info)).sqlgateway_billing_info)).endpoint_size)
+| extend autotermination_minutes = tostring(parse_json(RequestParams).autotermination_minutes)
+| extend enable_serverless_compute = tostring(parse_json(RequestParams).enable_serverless_compute)
+| summarize by ClusterId, EndpointName, endpoint_id, max_node_count,endpoint_size, autotermination_minutes, enable_serverless_compute;
+//get the time between events and agg to try and get time between activities
+let sql_events = DatabricksSQL
+| extend rparams = tostring(parse_json(RequestParams))
+| extend response = parse_json(Response)
+| extend RunDate = bin(TimeGenerated,1d), RunDateTime = bin(TimeGenerated,1m)
+| extend ResponseResult = tostring(parse_xml(response.result))
+| extend session_id = replace_strings(
+                        coalesce(extract('"session_id":(\"[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\")', 1, ResponseResult) //consider adding SessionId here, but it does not join onto anything
+                            ,extract('"session_ids":(\"[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\")', 1, rparams)
+                            ,extract('query_execution_session:([0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12})', 1, rparams))
+                        , dynamic(['"']),dynamic(['']))
+| where isnotempty(session_id)
+| summarize LogCount = count(LogId) by RunDate, RunDateTime, session_id
+| order by RunDateTime asc
+| extend timeDiffInMinutes = datetime_diff('Minute'
+                                            , RunDateTime
+                                            , case(
+                                                bin(prev(RunDateTime,1),1d)==RunDate
+                                                ,prev(RunDateTime,1)
+                                                ,RunDateTime));
+sql_sess
+| join kind=inner sql_endp_sess on session_id
+| join kind=leftouter c_startstops on endpoint_id
+| join kind=inner sql_events on session_id
+| summarize by StatusCode, session_id, endpoint_id, email, ClusterId, EndpointName, endpoint_size, enable_serverless_compute, RunDateTime, LogCount, timeDiffInMinutes
+| project RunDateTime, EndpointName, endpoint_id, LogCount
+| render columnchart kind=stacked with (ysplit=panels )

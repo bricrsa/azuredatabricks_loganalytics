@@ -194,6 +194,65 @@ Event details:
 *with Nothing*
 - changeJobAcl
 
+## SQL Endpoint Logs
+
+From Databricks SQL
+https://learn.microsoft.com/en-us/azure/databricks/administration-guide/account-settings/audit-logs#dbsql for high level reference
+
+Caution: SessionId has a different format from session_id
+SessionId example: eb07003524eb98e807a770b3b4c49f52f31848bd1706b1885381aaced84dbc67
+session_id example 01ee40f0-61a8-1961-bf8d-db827a1aef72
+
+*Action Names*
+ - cancelQueryExecution
+ - createQueryDraft
+ - downloadQueryResult
+ - executeAdhocQuery
+ - executeFastQuery
+ - executeSavedQuery
+ - executeWidgetQuery
+ - getQueriesByLookupKeys
+ - getQuery
+ - listQueries
+ - startEndpoint
+ - updateQuery
+ - updateQueryDraft
+
+Log Details for ActionName
+*with session id*
+- getQueriesByLookupKeys
+- listQueries
+- downloadQueryResult
+
+*with query id*
+- getQueriesByLookupKeys
+- listQueries
+- getQuery
+
+*with user id*
+- getQueriesByLookupKeys
+- listQueries
+
+*with endpoint id*
+- listQueries
+
+Many rows have the long form SessionId.
+Including cancelQueryExecution,	createQuery,	createQueryDraft,	deleteQueryDraft,	downloadQueryResult,	executeAdhocQuery,	executeFastQuery,	executeSavedQuery,	executeWidgetQuery,	getQuery,	moveQueryToTrash,	requestPermissions,	updateQuery,	updateQueryDraft
+
+If we need to know the endpoint id so that we can find out compute details from DatabricksCluster, this only exists on rows that have short form session_id. 
+It would appear that query exectutions (xecuteAdhocQuery,	executeFastQuery) are typically accompanied by a listQueries event, so assuming that it is possible to highlight endpoint activity by using linked session_ids.
+
+Queries
+
+[Queries executed - not linked to endpoint](/loganalytics_queries/sql_queries_executed.kql)
+[Activity - linked to endpoints](/loganalytics_queries/sql_activity_by_endpoint.kql)
+Activity times - attempt to measure time since last query - [to give idle time](/loganalytics_queries/sql_time_between_queries_by_endpoint.kql)
+
+### Areas for investigation
+- why don't the long form session ids link to anything?
+- which activities actually highlight a run query (currently assuming ('executeAdhocQuery',	'executeFastQuery',	'executeSavedQuery') )
+- how is query duration measured
+- what does the datasource_id mean
 
 
 *[back to Contents](/README.md#contents)*

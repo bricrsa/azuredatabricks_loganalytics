@@ -1,0 +1,25 @@
+//generate a list of all activity that has a session_id and indicates a query was run
+//assume the appropriate actions names are  ('executeAdhocQuery',	'executeFastQuery',	'executeSavedQuery')
+DatabricksSQL
+| extend response = parse_json(Response)
+| extend rparams = replace_strings(tostring(parse_json(RequestParams)),dynamic(['\\','[',']']),dynamic(['','','']))
+| extend StatusCode = extractjson("$.['statusCode']", tostring(response))
+| extend ResponseResult = tostring(parse_xml(response.result))
+| extend session_id = replace_strings(
+                        coalesce(SessionId
+                            ,extract('"session_id":(\"[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\")', 1, ResponseResult)
+                            ,extract('"session_ids":(\"[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\")', 1, rparams)
+                            ,extract('query_execution_session:([0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12})', 1, rparams) )
+                        , dynamic(['"']),dynamic(['']))
+| extend query_id =  replace_strings(coalesce(extract('"query_id":(\"[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\")', 1, ResponseResult)
+                            ,extract('"queryId":(\"[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\")', 1, rparams)), dynamic(['"']),dynamic(['']))
+| extend user_id =  extract('"user_id":([0-9]{16})', 1, ResponseResult)
+| extend datasource_id =  replace_strings(extract('"dataSourceId":(\"[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\")', 1, rparams), dynamic(['"']),dynamic(['']))
+| extend endpoint_id =  replace_strings(extract('"endpoint_ids":(\"[0-9a-fA-F]{16}\")', 1, rparams), dynamic(['"']),dynamic(['']))
+| extend email = tostring(parse_json(Identity).email)
+| where isnotempty(session_id)
+| where ActionName in ('executeAdhocQuery',	'executeFastQuery',	'executeSavedQuery')
+| project StatusCode, session_id, sess_ActionName= ActionName, email,  SessionDTG = TimeGenerated 
+| summarize ActionCount = count(session_id) by email, SessionHour = bin(SessionDTG, 1h), StatusCode
+| render columnchart
+
